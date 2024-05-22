@@ -51,10 +51,8 @@ class IITBehaviorModelPair(IITModelPair):
     def get_behaviour_loss_over_batch(self, base_input, loss_fn):
         base_x, base_y, _ = base_input
         output = self.ll_model(base_x)
-        try:
-            behavior_loss = loss_fn(output.squeeze(), base_y)
-        except:
-            behavior_loss = loss_fn(output, base_y) # for batch size 1
+        base_y = base_y.reshape(output.shape)
+        behavior_loss = loss_fn(output, base_y)
         return behavior_loss
 
     def step_on_loss(self, loss, optimizer):
@@ -133,9 +131,19 @@ class IITBehaviorModelPair(IITModelPair):
                 base_y = t.argmax(base_y, dim=-1)
             accuracy = (top1 == base_y).float().mean()
         else:
-            accuracy = ((output.squeeze() - base_y).abs() < atol).float().mean()
+            base_y = base_y.reshape(output.shape)
+            accuracy = ((output - base_y).abs() < atol).float().mean()
         return {
             "val/iit_loss": loss.item(),
             "val/IIA": IIA,
             "val/accuracy": accuracy.item(),
         }
+    
+
+    def _check_early_stop_condition(self, test_metrics: list[MetricStore]):
+        if self.training_args["iit_weight"] == 0:
+            for metric in test_metrics:
+                if metric.get_name() == "val/accuracy":
+                    return metric.get_value() == 100
+        else:
+            return super()._check_early_stop_condition(test_metrics)

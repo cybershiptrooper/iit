@@ -1,6 +1,6 @@
 import iit.model_pairs as mp
 import torch as t
-from typing import Dict
+from typing import Dict, List
 from iit.utils.node_picker import *
 from iit.utils.eval_metrics import *
 from tqdm import tqdm
@@ -25,7 +25,9 @@ def do_intervention(
     hooker: callable,
 ):
     _, cache = model_pair.ll_model.run_with_cache(ablation_input)
-    model_pair.ll_cache = cache  # TODO: make this better when converting to script
+    model_pair.ll_cache = (
+        cache  # TODO: make this better when converting to script
+    )
     out = model_pair.ll_model.run_with_hooks(
         base_input, fwd_hooks=[(node.name, hooker)]
     )
@@ -70,7 +72,10 @@ def resample_ablate_node(
                     "ll_out == base_ll_out:",
                     t.isclose(ll_out, base_ll_out, atol=atol).float().mean(),
                 )
-                print("fraction of labels changed:", (~label_unchanged).float().mean())
+                print(
+                    "fraction of labels changed:",
+                    (~label_unchanged).float().mean(),
+                )
                 print()
 
         elif categorical_metric == Categorical_Metric.ACCURACY:
@@ -88,26 +93,37 @@ def resample_ablate_node(
                 ~ll_unchanged
             ).cpu().float()
             results[node] += (
-                changed_result.sum().item() / (~label_unchanged).float().sum().item()
+                changed_result.sum().item()
+                / (~label_unchanged).float().sum().item()
             )
 
             if verbose:
-                print("label: ", (~label_unchanged).sum().item() / len(label_unchanged))
-                print("ll_vs_hl", (~ll_unchanged).sum().item() / len(ll_unchanged))
                 print(
-                    "ll_vs_ll", (~ll_out_unchanged).sum().item() / len(ll_out_unchanged)
+                    "label: ",
+                    (~label_unchanged).sum().item() / len(label_unchanged),
+                )
+                print(
+                    "ll_vs_hl", (~ll_unchanged).sum().item() / len(ll_unchanged)
+                )
+                print(
+                    "ll_vs_ll",
+                    (~ll_out_unchanged).sum().item() / len(ll_out_unchanged),
                 )
                 print("accuracy", accuracy.sum().item() / len(accuracy))
     else:
         label_unchanged = base_y == ablation_y
         ll_unchanged = t.isclose(
-            ll_out.float().squeeze(), base_hl_out.float().to(ll_out.device), atol=atol
+            ll_out.float().squeeze(),
+            base_hl_out.float().to(ll_out.device).squeeze(),
+            atol=atol,
         )
+        label_unchanged = label_unchanged.reshape(ll_unchanged.shape)
         changed_result = (~label_unchanged).cpu().float() * (
             ~ll_unchanged
         ).cpu().float()
         results[node] += (
-            changed_result.sum().item() / (~label_unchanged).float().sum().item()
+            changed_result.sum().item()
+            / (~label_unchanged).float().sum().item()
         )
 
         if verbose:
@@ -119,7 +135,9 @@ def resample_ablate_node(
                 "\ndot product:",
                 changed_result.mean(),
                 "\ndifference:",
-                (ll_out.float().squeeze() - base_y.float().to(ll_out.device)).mean(),
+                (
+                    ll_out.float().squeeze() - base_y.float().to(ll_out.device)
+                ).mean(),
                 "\nfinal:",
                 results[node],
             )
@@ -153,7 +171,13 @@ def check_causal_effect(
     for base_in, ablation_in in tqdm(loader):
         for node, hooker in hookers.items():
             resample_ablate_node(
-                model_pair, base_in, ablation_in, node, results, hooker, verbose=verbose
+                model_pair,
+                base_in,
+                ablation_in,
+                node,
+                results,
+                hooker,
+                verbose=verbose,
             )
 
     for node, result in results.items():
@@ -161,11 +185,18 @@ def check_causal_effect(
     return results
 
 
-def get_mean_cache(model_pair, dataset, batch_size=8):
+def get_mean_cache(model, dataset, batch_size=8):
     loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
     mean_cache = {}
     for batch in tqdm(loader):
-        _, cache = model_pair.ll_model.run_with_cache(batch[0])
+        if isinstance(model, mp.BaseModelPair):
+            _, cache = model.ll_model.run_with_cache(batch[0])
+        elif isinstance(model, HookedTransformer):
+            _, cache = model.run_with_cache(batch[0])
+        else:
+            raise ValueError(
+                f"model must be of type BaseModelPair or HookedTransformer, got {type(model)}"
+            )
         for node, tensor in cache.items():
             if node not in mean_cache:
                 mean_cache[node] = t.zeros_like(tensor[0].unsqueeze(0))
@@ -174,7 +205,9 @@ def get_mean_cache(model_pair, dataset, batch_size=8):
 
 
 def make_ablation_hook(
-    node: mp.LLNode, mean_cache: dict[str, t.Tensor], use_mean_cache: bool = True
+    node: mp.LLNode,
+    mean_cache: dict[str, t.Tensor],
+    use_mean_cache: bool = True,
 ) -> callable:
     if node.subspace is not None:
         raise NotImplementedError("Subspace not supported yet.")
@@ -193,17 +226,33 @@ def make_ablation_hook(
     return zero_hook
 
 
-def ablate_node(
+def ablate_nodes(
     model_pair: mp.IITModelPair,
     base_in: tuple[t.Tensor, t.Tensor, t.Tensor],
-    node: mp.LLNode,
-    results: Dict[str, float],
-    hook: callable,
+    fwd_hooks: List[tuple[str, callable]],
     atol=5e-2,
+    use_single_input=False,
+    relative_change=True,
     verbose=False,
 ):
-    base_x, base_y, _ = base_in
-    ll_out = model_pair.ll_model.run_with_hooks(base_x, fwd_hooks=[(node.name, hook)])
+    """
+    Returns 1 - accuracy of the model after ablating the nodes in fwd_hooks.
+    Args:
+        model_pair: IITModelPair
+        base_in: input to the model
+        fwd_hooks: list of tuples of (str, callable)
+        atol: float (default: 5e-2)
+        use_single_input: bool (default: False)
+        The model takes a single input instead of a tuple of inputs
+        relative_change: bool (default: True)
+        If relative_change is True, the accuracy is normalized wrt to the accuracy of the model before ablation.
+        i.e., we return 1 - accuracy(after ablation | accuracy(before ablation) = 1)
+    """
+    if not use_single_input:
+        base_x, base_y, _ = base_in
+    else:
+        base_x = base_in
+    ll_out = model_pair.ll_model.run_with_hooks(base_x, fwd_hooks=fwd_hooks)
 
     if model_pair.hl_model.is_categorical():
         # TODO: add other metrics here
@@ -213,25 +262,35 @@ def ablate_node(
         ll_out = t.argmax(ll_out, dim=-1)[label_idx.as_index]
         base_hl_out = t.argmax(base_hl_out, dim=-1)[label_idx.as_index]
         base_ll_out = t.argmax(base_ll_out, dim=-1)[label_idx.as_index]
-        ll_unchanged = ll_out == base_hl_out
-        accuracy = base_ll_out == base_hl_out
+        ll_unchanged = (
+            ll_out == base_hl_out
+        )  # output of ll model is same as hl model after ablation
+        accuracy = (
+            base_ll_out == base_hl_out
+        )  # output of ll model is same as hl model before ablation
+        # calculate output output of ll model is different after ablation,
+        # given that it was the same before ablation
         changed_result = (~ll_unchanged).cpu().float() * accuracy.cpu().float()
-        results[node] += changed_result.sum().item() / (
-            accuracy.float().sum().item() + 1e-6
-        )
     else:
         base_hl_out = model_pair.hl_model(base_in).squeeze()
         base_ll_out = model_pair.ll_model(base_x).squeeze()
         ll_unchanged = t.isclose(
-            ll_out.float().squeeze(), base_hl_out.float().to(ll_out.device), atol=atol
+            ll_out.float().squeeze(),
+            base_hl_out.float().to(ll_out.device),
+            atol=atol,
         )
         accuracy = (
-            t.isclose(base_ll_out.float(), base_hl_out.float(), atol=atol).cpu().float()
+            t.isclose(base_ll_out.float(), base_hl_out.float(), atol=atol)
+            .cpu()
+            .float()
         )
         changed_result = (~ll_unchanged).cpu().float() * accuracy
-        results[node] += changed_result.sum().item() / (
+    if relative_change:
+        return changed_result.sum().item() / (
             accuracy.float().sum().item() + 1e-6
         )
+    
+    return (~ll_unchanged).cpu().float().mean()
 
 
 def get_causal_effects_for_all_nodes(
@@ -241,7 +300,9 @@ def get_causal_effects_for_all_nodes(
     use_mean_cache=True,
 ):
     if use_mean_cache:
-        mean_cache = get_mean_cache(model_pair, uni_test_set, batch_size=batch_size)
+        mean_cache = get_mean_cache(
+            model_pair, uni_test_set, batch_size=batch_size
+        )
     za_result_not_in_circuit = check_causal_effect_on_ablation(
         model_pair,
         uni_test_set,
@@ -288,7 +349,9 @@ def check_causal_effect_on_ablation(
     loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
     for base_in in tqdm(loader):
         for node, hooker in hookers.items():
-            ablate_node(model_pair, base_in, node, results, hooker, verbose=verbose)
+            results[node] += ablate_nodes(
+                model_pair, base_in, [(node.name, hooker)]
+            )
 
     for node, result in results.items():
         results[node] = result / len(loader)
@@ -326,7 +389,9 @@ def make_combined_dataframe_of_results(
     use_mean_cache: bool = False,
 ):
     df = make_dataframe_of_results(result_not_in_circuit, result_in_circuit)
-    df2 = make_dataframe_of_results(za_result_not_in_circuit, za_result_in_circuit)
+    df2 = make_dataframe_of_results(
+        za_result_not_in_circuit, za_result_in_circuit
+    )
     df2_causal_effect = df2.pop("causal effect")
     # rename the columns
     df["resample_ablate_effect"] = df.pop("causal effect")
@@ -338,15 +403,52 @@ def make_combined_dataframe_of_results(
     return df
 
 
-def save_result(df: pd.DataFrame, save_dir: str, model_pair: mp.BaseModelPair = None):
+def get_circuit_score(
+    model_pair: mp.BaseModelPair,
+    dataset: IITDataset,
+    nodes_to_ablate: List[mp.LLNode],
+    mean_cache: Dict[str, t.Tensor] = None,
+    batch_size: int = 256,
+    use_mean_cache: bool = False,
+    relative_change: bool = True,
+    verbose: bool = False,
+):
+    """
+    Returns the accuracy of the model after ablating the nodes in nodes_to_ablate.
+    Defaults to zero ablation.
+    see ablate_nodes for more details
+    """
+    if use_mean_cache and mean_cache is None:
+        mean_cache = get_mean_cache(model_pair, dataset, batch_size=batch_size)
+    fwd_hooks = []
+
+    for node in nodes_to_ablate:
+        fwd_hooks.append(
+            (node.name, make_ablation_hook(node, mean_cache, use_mean_cache))
+        )
+    loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
+    result = 0
+    with torch.no_grad():
+        for base_in in tqdm(loader):
+            result += 1 - ablate_nodes(
+                model_pair, base_in, fwd_hooks, verbose=verbose, relative_change=relative_change
+            )
+    return result / len(loader)
+
+
+def save_result(
+    df: pd.DataFrame, save_dir: str, model_pair: mp.BaseModelPair = None
+):
     os.makedirs(save_dir, exist_ok=True)
     try:
         dfi.export(df, f"{save_dir}/results.png")
     except Exception as e:
         print(f"Error exporting dataframe to image: {e}")
     df.to_csv(f"{save_dir}/results.csv")
+    print("Results saved to", save_dir)
     if model_pair is None:
         return
     training_args = model_pair.training_args
-    with open(f"{save_dir}/meta.log", "w") as f:
+    with open(f"{save_dir}/train_args.log", "w") as f:
         f.write(str(training_args))
+    print("Training args saved to", save_dir)

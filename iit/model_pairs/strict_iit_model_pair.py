@@ -56,7 +56,6 @@ class StrictIITModelPair(IITBehaviorModelPair):
 
         # loss for nodes that are not in the circuit
         # should not have causal effect on the high-level output
-        # TODO: add another loss type for this
         base_x, base_y, _ = base_input
         ablation_x, ablation_y, _ = ablation_input
         ll_node = self.sample_ll_node()
@@ -66,8 +65,9 @@ class StrictIITModelPair(IITBehaviorModelPair):
             base_x, fwd_hooks=[(ll_node.name, self.make_ll_ablation_hook(ll_node))]
         )
         # print(out.shape, base_y.shape)
+        base_y = base_y.reshape(out.shape)
         ll_loss = (
-            loss_fn(out.squeeze(), base_y.to(self.ll_model.cfg.device))
+            loss_fn(out, base_y.to(self.ll_model.cfg.device))
             * self.training_args["strict_weight"]
         )
         if not use_single_loss:

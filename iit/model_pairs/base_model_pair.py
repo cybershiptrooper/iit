@@ -207,6 +207,7 @@ class BaseModelPair(ABC):
         test_set,
         epochs=1000,
         use_wandb=False,
+        wandb_name_suffix="",
     ):
         training_args = self.training_args
         print(f"{training_args=}")
@@ -236,7 +237,8 @@ class BaseModelPair(ABC):
             lr_scheduler = scheduler_cls(optimizer)
 
         if use_wandb and not wandb.run:
-            wandb.init(project="iit", entity=WANDB_ENTITY)
+            wandb.init(project="iit", name=wandb_name_suffix, 
+                       entity=WANDB_ENTITY)
 
         if use_wandb:
             wandb.config.update(training_args)
@@ -301,7 +303,7 @@ class BaseModelPair(ABC):
     @staticmethod
     def _check_early_stop_condition(test_metrics):
         """
-        Returns True if all types of accuracy metrics are above 0.99
+        Returns True if all types of accuracy metrics reach 100%
         """
         got_accuracy_metric = False
         for metric in test_metrics:
