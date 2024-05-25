@@ -15,6 +15,7 @@ from enum import Enum
 class Categorical_Metric(Enum):
     ACCURACY = "accuracy"
     KL = "kl_div"
+    KL_SELF = "kl_div_self"
 
 
 def do_intervention(
@@ -61,6 +62,9 @@ def resample_ablate_node(
 
         if categorical_metric == Categorical_Metric.KL:
             kl = kl_div(ll_out, base_hl_out, label_idx)
+            corrupted_output = model_pair.hl_model(ablation_in).squeeze()
+            kl_div_corrupted = kl_div(corrupted_output, base_hl_out, label_idx)
+            kl = kl / (kl_div_corrupted + 1e-12) # normalize by the kl divergence of the corrupted output
             results[node] += kl.mean().item()
 
             if verbose:
@@ -77,7 +81,12 @@ def resample_ablate_node(
                     (~label_unchanged).float().mean(),
                 )
                 print()
-
+        elif categorical_metric == Categorical_Metric.KL_SELF:
+            kl = kl_div(ll_out, base_ll_out, label_idx)
+            corrupted_output = model_pair.hl_model(ablation_in).squeeze()
+            kl_div_corrupted = kl_div(corrupted_output, base_hl_out, label_idx)
+            kl = kl / (kl_div_corrupted + 1e-12) # normalize by the kl divergence of the corrupted output
+            results[node] += kl.mean().item()
         elif categorical_metric == Categorical_Metric.ACCURACY:
             # TODO: Move to a function
             # take argmax of everything
@@ -94,7 +103,7 @@ def resample_ablate_node(
             ).cpu().float()
             results[node] += (
                 changed_result.sum().item()
-                / (~label_unchanged).float().sum().item()
+                / ((~label_unchanged).float().sum().item() + 1e-12)
             )
 
             if verbose:
@@ -123,7 +132,7 @@ def resample_ablate_node(
         ).cpu().float()
         results[node] += (
             changed_result.sum().item()
-            / (~label_unchanged).float().sum().item()
+            / ((~label_unchanged).float().sum().item() + 1e-12)
         )
 
         if verbose:
@@ -300,6 +309,7 @@ def get_causal_effects_for_all_nodes(
     uni_test_set,
     batch_size=256,
     use_mean_cache=True,
+    categorical_metric=Categorical_Metric.ACCURACY,
 ):
     if use_mean_cache:
         mean_cache = get_mean_cache(
@@ -311,6 +321,7 @@ def get_causal_effects_for_all_nodes(
         node_type="n",
         verbose=False,
         mean_cache=mean_cache,
+        categorical_metric=categorical_metric,
     )
     za_result_in_circuit = check_causal_effect_on_ablation(
         model_pair,
@@ -318,6 +329,7 @@ def get_causal_effects_for_all_nodes(
         node_type="c",
         verbose=False,
         mean_cache=mean_cache,
+        categorical_metric=categorical_metric,
     )
     return za_result_not_in_circuit, za_result_in_circuit
 
@@ -328,6 +340,7 @@ def check_causal_effect_on_ablation(
     batch_size: int = 256,
     node_type: str = "a",
     mean_cache: dict[str, t.Tensor] = None,
+    categorical_metric: Categorical_Metric = Categorical_Metric.ACCURACY,
     verbose: bool = False,
 ):
     use_mean_cache = True if mean_cache else False

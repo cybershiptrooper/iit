@@ -181,15 +181,17 @@ class BaseModelPair(ABC):
 
     def step_scheduler(self, lr_scheduler, test_metrics):
         if isinstance(lr_scheduler, t.optim.lr_scheduler.ReduceLROnPlateau):
-            val_metric = self.training_args.get("scheduler_val_metric", "val/accuracy")
+            accuracy_metric = 0
+            for metric in self.training_args.get("scheduler_val_metric", ["val/accuracy"]):
+                try:
+                    accuracy_metric += test_metrics.to_dict()[metric]
+                except KeyError:
+                    raise ValueError(
+                        f"val_metric {metric} not found in test_metrics {test_metrics}"
+                    )
             try:
-                accuracy_metric = test_metrics.to_dict()[val_metric]
                 lr_scheduler.step(accuracy_metric)
                 return
-            except KeyError:
-                raise ValueError(
-                    f"val_metric {val_metric} not found in test_metrics {test_metrics}"
-                )
             except Exception as e:
                 raise ValueError(
                     f"WARNING: Could not step lr_scheduler {lr_scheduler} with exception {e}"

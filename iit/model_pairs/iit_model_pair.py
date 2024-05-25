@@ -32,8 +32,8 @@ class IITModelPair(BaseModelPair):
             "lr": 0.001,
             "num_workers": 0,
             "early_stop": True,
-            "lr_scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau,
-            "scheduler_val_metric": "val/accuracy",
+            "lr_scheduler": None,
+            "scheduler_val_metric": ["val/accuracy", "val/IIA"],
             "scheduler_mode": "max",
             "clip_grad_norm": 1.0,
         }

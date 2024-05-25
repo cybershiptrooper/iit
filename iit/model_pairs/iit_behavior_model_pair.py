@@ -16,18 +16,27 @@ class IITBehaviorModelPair(IITModelPair):
         training_args = {**default_training_args, **training_args}
         super().__init__(hl_model, ll_model, corr=corr, training_args=training_args)
         self.wandb_method = "iit_and_behavior"
-
+    
     @property
     def loss_fn(self):
         # TODO: make this more general
+        def class_loss(output, target):
+            # convert to (N, C, ...) if necessary
+            if len(target.shape) == len(output.shape) and len(output.shape) > 2:
+                return t.nn.functional.cross_entropy(output.transpose(-1, 1), target.transpose(-1, 1))
+            elif len(output.shape) > 2:
+                return t.nn.functional.cross_entropy(output.transpose(-1, 1), target)
+            assert len(output.shape) == 2
+            assert len(target.shape) == 1
+            return t.nn.functional.cross_entropy(output, target)
         try:
             if self.hl_model.is_categorical():
-                return t.nn.CrossEntropyLoss()
+                return class_loss
             else:
                 return t.nn.MSELoss()
         except AttributeError:
             print("WARNING: using default categorical loss function.")
-            return t.nn.CrossEntropyLoss()
+            return class_loss
 
     @staticmethod
     def make_train_metrics():
