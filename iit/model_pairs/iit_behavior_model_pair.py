@@ -108,6 +108,7 @@ class IITBehaviorModelPair(IITModelPair):
         # compute IIT loss and accuracy
         hl_node = self.sample_hl_name()
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
+        hl_output.to(ll_output.device)
         if self.hl_model.is_categorical():
             loss = loss_fn(ll_output, hl_output)
             if ll_output.shape == hl_output.shape:

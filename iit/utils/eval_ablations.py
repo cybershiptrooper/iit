@@ -13,8 +13,8 @@ from enum import Enum
 
 
 class Categorical_Metric(Enum):
-    ACCURACY = 1
-    KL = 2
+    ACCURACY = "accuracy"
+    KL = "kl_div"
 
 
 def do_intervention(
@@ -43,7 +43,7 @@ def resample_ablate_node(
     hooker: callable,
     atol=5e-2,
     verbose=False,
-    categorical_metric: Categorical_Metric = Categorical_Metric.KL,
+    categorical_metric: Categorical_Metric = Categorical_Metric.ACCURACY,
 ):  # TODO: change name to reflect that it's not just for resampling
     base_x, base_y, _ = base_in
     ablation_x, ablation_y, _ = ablation_in
@@ -148,6 +148,7 @@ def check_causal_effect(
     dataset: IITDataset,
     batch_size: int = 256,
     node_type: str = "a",
+    categorical_metric: Categorical_Metric = Categorical_Metric.ACCURACY,
     verbose: bool = False,
 ):
     assert node_type in ["a", "c", "n"], "type must be one of 'a', 'c', or 'n'"
@@ -177,6 +178,7 @@ def check_causal_effect(
                 node,
                 results,
                 hooker,
+                categorical_metric=categorical_metric,
                 verbose=verbose,
             )
 
@@ -437,14 +439,14 @@ def get_circuit_score(
 
 
 def save_result(
-    df: pd.DataFrame, save_dir: str, model_pair: mp.BaseModelPair = None
+    df: pd.DataFrame, save_dir: str, model_pair: mp.BaseModelPair = None, suffix=""
 ):
     os.makedirs(save_dir, exist_ok=True)
     try:
-        dfi.export(df, f"{save_dir}/results.png")
+        dfi.export(df, f"{save_dir}/results{suffix}.png")
     except Exception as e:
         print(f"Error exporting dataframe to image: {e}")
-    df.to_csv(f"{save_dir}/results.csv")
+    df.to_csv(f"{save_dir}/results{suffix}.csv")
     print("Results saved to", save_dir)
     if model_pair is None:
         return
