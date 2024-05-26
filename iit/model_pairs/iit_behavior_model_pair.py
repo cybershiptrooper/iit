@@ -26,8 +26,8 @@ class IITBehaviorModelPair(IITModelPair):
                 return t.nn.functional.cross_entropy(output.transpose(-1, 1), target.transpose(-1, 1))
             elif len(output.shape) > 2:
                 return t.nn.functional.cross_entropy(output.transpose(-1, 1), target)
-            assert len(output.shape) == 2
-            assert len(target.shape) == 1
+            assert len(output.shape) == 2 # N, C
+            assert len(target.shape) == 1 or target.shape == output.shape # argmax, or class probabilities
             return t.nn.functional.cross_entropy(output, target)
         try:
             if self.hl_model.is_categorical():
@@ -60,7 +60,6 @@ class IITBehaviorModelPair(IITModelPair):
     def get_behaviour_loss_over_batch(self, base_input, loss_fn):
         base_x, base_y, _ = base_input
         output = self.ll_model(base_x)
-        base_y = base_y.reshape(output.shape)
         behavior_loss = loss_fn(output, base_y)
         return behavior_loss
 
@@ -141,7 +140,6 @@ class IITBehaviorModelPair(IITModelPair):
                 base_y = t.argmax(base_y, dim=-1)
             accuracy = (top1 == base_y).float().mean()
         else:
-            base_y = base_y.reshape(output.shape)
             accuracy = ((output - base_y).abs() < atol).float().mean()
         return {
             "val/iit_loss": loss.item(),

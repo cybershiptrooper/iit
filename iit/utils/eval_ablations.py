@@ -62,7 +62,7 @@ def resample_ablate_node(
 
         if categorical_metric == Categorical_Metric.KL:
             kl = kl_div(ll_out, base_hl_out, label_idx)
-            corrupted_output = model_pair.hl_model(ablation_in).squeeze()
+            corrupted_output = model_pair.ll_model(ablation_in[0]).squeeze()
             kl_div_corrupted = kl_div(corrupted_output, base_hl_out, label_idx)
             kl = kl / (kl_div_corrupted + 1e-12) # normalize by the kl divergence of the corrupted output
             results[node] += kl.mean().item()

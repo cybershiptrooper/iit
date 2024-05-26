@@ -6,7 +6,10 @@ def kl_div(a: torch.Tensor,
            label_idx: index.TorchIndex):
     a_pmf = a[label_idx.as_index]
     b_pmf = b[label_idx.as_index]
-
+    # check if b is ints
+    if b_pmf.dtype in [torch.int32, torch.int64, torch.long, torch.int]:
+        assert b.shape == a.shape[:-1], ValueError(f"Got unknown shapes for a and b: {a.shape} and {b.shape}")
+        b_pmf = torch.nn.functional.one_hot(b_pmf, num_classes=a_pmf.shape[-1]).float()
     pmf_checker = lambda x: torch.allclose(
         x.sum(dim=-1), torch.ones_like(x.sum(dim=-1))
     )
