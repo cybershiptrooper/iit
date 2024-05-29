@@ -23,6 +23,9 @@ class IITBehaviorModelPair(IITModelPair):
         def class_loss(output, target):
             # convert to (N, C, ...) if necessary
             if len(target.shape) == len(output.shape) and len(output.shape) > 2:
+                # convert target to float if necessary
+                if target.dtype not in [t.float32, t.float64]:
+                    target = target.float()
                 return t.nn.functional.cross_entropy(output.transpose(-1, 1), target.transpose(-1, 1))
             elif len(output.shape) > 2:
                 return t.nn.functional.cross_entropy(output.transpose(-1, 1), target)

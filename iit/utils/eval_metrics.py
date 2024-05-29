@@ -8,18 +8,21 @@ def kl_div(a: torch.Tensor,
     b_pmf = b[label_idx.as_index]
     # check if b is ints
     if b_pmf.dtype in [torch.int32, torch.int64, torch.long, torch.int]:
-        assert b.shape == a.shape[:-1], ValueError(f"Got unknown shapes for a and b: {a.shape} and {b.shape}")
-        b_pmf = torch.nn.functional.one_hot(b_pmf, num_classes=a_pmf.shape[-1]).float()
+        if b.shape == a.shape[:-1]:
+            b_pmf = torch.nn.functional.one_hot(b_pmf, num_classes=a_pmf.shape[-1]).float()
+        b_pmf = b_pmf.float()
     pmf_checker = lambda x: torch.allclose(
         x.sum(dim=-1), torch.ones_like(x.sum(dim=-1))
     )
     if not pmf_checker(a_pmf):
-        a_pmf = torch.nn.functional.softmax(a_pmf, dim=-1)
+        a_pmf = torch.nn.functional.log_softmax(a_pmf, dim=-1)
+    else:
+        a_pmf = torch.log(a_pmf)
     if not pmf_checker(b_pmf):
         b_pmf = torch.nn.functional.softmax(b_pmf, dim=-1)
 
     return torch.nn.functional.kl_div(
-        a_pmf.log(), b_pmf, reduction="none", log_target=False
+        a_pmf, b_pmf, reduction="none", log_target=False
     ).sum(dim=-1)
 
 def accuracy_affected(

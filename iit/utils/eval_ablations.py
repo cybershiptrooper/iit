@@ -40,7 +40,6 @@ def resample_ablate_node(
     base_in: tuple[t.Tensor, t.Tensor, t.Tensor],
     ablation_in: tuple[t.Tensor, t.Tensor, t.Tensor],
     node: mp.LLNode,
-    results: Dict[str, float],
     hooker: callable,
     atol=5e-2,
     verbose=False,
@@ -63,9 +62,13 @@ def resample_ablate_node(
         if categorical_metric == Categorical_Metric.KL:
             kl = kl_div(ll_out, base_hl_out, label_idx)
             corrupted_output = model_pair.ll_model(ablation_in[0]).squeeze()
+            kl_div_clean = kl_div(base_ll_out, base_hl_out, label_idx)
             kl_div_corrupted = kl_div(corrupted_output, base_hl_out, label_idx)
-            kl = kl / (kl_div_corrupted + 1e-12) # normalize by the kl divergence of the corrupted output
-            results[node] += kl.mean().item()
+            # normalize by the kl divergence of the corrupted output
+            kl = (kl - kl_div_clean) / (kl_div_corrupted - kl_div_clean + 1e-12) 
+            result = (kl * (~label_unchanged).float()).sum().item() / (
+                (~label_unchanged).float().sum().item() + 1e-12
+            )
 
             if verbose:
                 kl_old_vs_new = kl_div(ll_out, base_ll_out, label_idx)
@@ -81,12 +84,15 @@ def resample_ablate_node(
                     (~label_unchanged).float().mean(),
                 )
                 print()
+
         elif categorical_metric == Categorical_Metric.KL_SELF:
             kl = kl_div(ll_out, base_ll_out, label_idx)
-            corrupted_output = model_pair.hl_model(ablation_in).squeeze()
-            kl_div_corrupted = kl_div(corrupted_output, base_hl_out, label_idx)
+            corrupted_output = model_pair.ll_model(ablation_x).squeeze()
+            kl_div_corrupted = kl_div(corrupted_output, base_ll_out, label_idx)
             kl = kl / (kl_div_corrupted + 1e-12) # normalize by the kl divergence of the corrupted output
-            results[node] += kl.mean().item()
+            result = (kl * (~label_unchanged).float()).sum().item() / (
+                (~label_unchanged).float().sum().item() + 1e-12
+            )
         elif categorical_metric == Categorical_Metric.ACCURACY:
             # TODO: Move to a function
             # take argmax of everything
@@ -101,7 +107,7 @@ def resample_ablate_node(
             changed_result = (~label_unchanged).cpu().float() * (
                 ~ll_unchanged
             ).cpu().float()
-            results[node] += (
+            result = (
                 changed_result.sum().item()
                 / ((~label_unchanged).float().sum().item() + 1e-12)
             )
@@ -130,7 +136,7 @@ def resample_ablate_node(
         changed_result = (~label_unchanged).cpu().float() * (
             ~ll_unchanged
         ).cpu().float()
-        results[node] += (
+        result = (
             changed_result.sum().item()
             / ((~label_unchanged).float().sum().item() + 1e-12)
         )
@@ -148,8 +154,9 @@ def resample_ablate_node(
                     ll_out.float().squeeze() - base_y.float().to(ll_out.device)
                 ).mean(),
                 "\nfinal:",
-                results[node],
+                result,
             )
+    return result
 
 
 def check_causal_effect(
@@ -180,19 +187,16 @@ def check_causal_effect(
     loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
     for base_in, ablation_in in tqdm(loader):
         for node, hooker in hookers.items():
-            resample_ablate_node(
+            result = resample_ablate_node(
                 model_pair,
                 base_in,
                 ablation_in,
                 node,
-                results,
                 hooker,
                 categorical_metric=categorical_metric,
                 verbose=verbose,
             )
-
-    for node, result in results.items():
-        results[node] = result / len(loader)
+            results[node] += result / len(loader)
     return results
 
 
