@@ -20,10 +20,9 @@ all_mlps = [f"blocks.{i}.mlp.hook_post" for i in range(ioi_cfg["n_layers"])]
 corr_dict = {
     "hook_duplicate": [all_attns[0]],
     # "hook_previous": ["blocks.1.attn.hook_result"],
-    "hook_s_inhibition": [all_attns[2], all_attns[3]],
-    "hook_name_mover": [all_attns[4], all_attns[5]],
-
-    "all_nodes_hook": [*all_mlps[:2]],
+    "hook_s_inhibition": [all_attns[2]],
+    "hook_name_mover": [all_attns[4]],
+    # "all_nodes_hook": [*all_mlps[:2]],
 }
 # corr_dict = {
 #     "all_nodes_hook": [*all_mlps[:2], *all_attns[:4]]

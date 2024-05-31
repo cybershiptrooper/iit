@@ -1,82 +1,26 @@
+from iit.utils.train_scripts import train_ioi
+from iit.utils.io_scripts import save_model
 import torch as t
-import transformer_lens
-from iit.utils.iit_dataset import IITDataset, train_test_split
-import iit.model_pairs as mp
-from iit.model_pairs.base_model_pair import *
-from iit.utils.metric import *
-from iit.tasks.ioi import NAMES, make_ioi_dataset_and_hl, corr, corr_dict, ioi_cfg
-import os
-import json
 
-DEVICE = t.device("cuda" if t.cuda.is_available() else "cpu")
-num_samples = 12000
-epochs = 1000
-use_wandb = True
-training_args = {
-    "batch_size": 256,
-    "lr": 1e-4,
-    "iit_weight": 1.0,
-    "behavior_weight": 1.0,
-    "strict_weight": 0.4,
-    "next_token": False,
-    "lr_scheduler": None,  
-    "clip_grad_norm": 1.0,
-    "early_stop": True,
-    "use_single_loss": False,
-}
-t.manual_seed(0)
-np.random.seed(0)
+if __name__ == "__main__":
+    import argparse 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--num-samples", type=int, default=12000)
+    parser.add_argument("--epochs", type=int, default=1000)
+    parser.add_argument("--use-wandb", action="store_true")
+    parser.add_argument("--device", type=str, default="cuda" if t.cuda.is_available() else "cpu")
+    parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("-lr", type=float, default=1e-3)
+    parser.add_argument("-iit", type=float, default=1.0)
+    parser.add_argument("-b", type=float, default=1.0)
+    parser.add_argument("-s", type=float, default=0.4)
+    parser.add_argument("--next-token", action="store_true")
+    parser.add_argument("--clip-grad-norm", type=float, default=1.0)
+    parser.add_argument("-single-loss", "--use-single-loss", action="store_true")
+    parser.add_argument("--save-to-wandb", action="store_true")
+    parser.add_argument("--output-dir", type=str, default="./results")
 
-ll_cfg = transformer_lens.HookedTransformer.from_pretrained("gpt2").cfg.to_dict()
-ll_cfg.update(ioi_cfg)
+    args = parser.parse_args()
 
-ll_cfg["init_weights"] = True
-ll_model = transformer_lens.HookedTransformer(ll_cfg).to(DEVICE)
-print("making ioi dataset and hl")
-ioi_dataset, hl_model = make_ioi_dataset_and_hl(num_samples, ll_model, NAMES, verbose=False)
-print("making IIT dataset")
-train_ioi_dataset, test_ioi_dataset = train_test_split(
-    ioi_dataset, test_size=0.2, random_state=42
-)
-train_set = IITDataset(train_ioi_dataset, train_ioi_dataset, seed=0)
-test_set = IITDataset(test_ioi_dataset, test_ioi_dataset, seed=0)
-print("making ioi model pair")
-model_pair = mp.IOI_ModelPair(
-    ll_model=ll_model, hl_model=hl_model, corr=corr, training_args=training_args
-)
-print("training ioi model pair")
-model_pair.train(train_set, test_set, epochs=epochs, use_wandb=use_wandb)
-
-print(f"done training")
-# save model
-save_dir = f"models/ioi/{model_pair.__class__.__name__}"
-model_dir = f"{int(100*training_args['behavior_weight'])}_{int(100*training_args['iit_weight'])}_{int(100*training_args['strict_weight'])}"
-os.makedirs(f"{save_dir}/{model_dir}", exist_ok=True)
-torch.save(ll_model.state_dict(), f"{save_dir}/{model_dir}/ll_model.pth")
-
-# save training args
-with open(f"{save_dir}/{model_dir}/training_args.json", "w") as f:
-    json.dump(training_args, f)
-
-# dump model cfg
-cfg = ll_model.cfg.to_dict()
-with open(f"{save_dir}/{model_dir}/ll_model_cfg.json", "w") as f:
-    f.write(str(cfg))
-
-# log metrics
-with open(f"{save_dir}/{model_dir}/metrics.log", "w") as f:
-    f.write(f"Epochs: {epochs}\n")
-    f.write(f"Early stop: {model_pair._check_early_stop_condition(model_pair.test_metrics.metrics)}\n")
-    f.write("\n\n--------------------------------\n\n")
-    f.write("Training metrics:\n")
-    f.write(str(model_pair.train_metrics.metrics))
-    f.write("\n\n--------------------------------\n\n")
-    f.write("Test metrics:\n")
-    f.write(str(model_pair.test_metrics.metrics))
-
-# save the model
-torch.save(ll_model.state_dict(), f"{save_dir}/{model_dir}/ll_model.pth")
-
-# save corr dict
-with open(f"{save_dir}/{model_dir}/corr.json", "w") as f:
-    json.dump(corr_dict, f)
+    model_pair = train_ioi(args)
+    save_model(model_pair, args, "ioi")

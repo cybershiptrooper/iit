@@ -216,7 +216,8 @@ class IOIDataset(Dataset):
         self.templates = (
             templates if templates is not None else self.get_default_templates()
         )
-        self.max_sentence_length = max(len(self.tokenizer.encode(t)) for t in self.templates)
+        # self.max_sentence_length = max(len(self.tokenizer.encode(t)) for t in self.templates)
+        self.max_sentence_length = 17
         self.names = names if names is not None else self.get_default_names()
         self.nouns = nouns if nouns is not None else self.get_default_nouns()
 
@@ -366,13 +367,15 @@ def ioi_eval(
 
 from iit.utils.config import DEVICE
 class IOIDatasetWrapper(IOIDataset):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, 
+                 device=DEVICE, **kwargs):
         super().__init__(*args, **kwargs)
+        self.device = device
     
     def __getitem__(self, idx):
         x = super().__getitem__(idx)
         prompt = x['prompt']
         y = list(prompt[1:])
         y = torch.nn.functional.one_hot(torch.tensor(y), num_classes=self.tokenizer.vocab_size).float()
-        return (x['prompt'][:-1].to(DEVICE), (y).to(DEVICE), (x['IO']).to(DEVICE))
+        return (x['prompt'][:-1].to(self.device), (y).to(self.device), (x['IO']).to(self.device))
     

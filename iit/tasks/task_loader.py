@@ -5,9 +5,15 @@ from transformer_lens.hook_points import HookedRootModule
 from iit.utils.iit_dataset import IITDataset
 
 
-def get_dataset(task: str, dataset_config: dict) -> tuple[IITDataset, IITDataset]:
+def get_dataset(
+    task: str, dataset_config: dict
+) -> tuple[IITDataset, IITDataset]:
     if "pvr" in task:
-        default_dataset_args = {"pad_size": 7, "train_size": 60000, "test_size": 10000}
+        default_dataset_args = {
+            "pad_size": 7,
+            "train_size": 60000,
+            "test_size": 10000,
+        }
         default_dataset_args.update(dataset_config)
         if task == "mnist_pvr":
             unique_per_quad = False
@@ -32,9 +38,7 @@ def get_dataset(task: str, dataset_config: dict) -> tuple[IITDataset, IITDataset
     return IITDataset(train_set, train_set), IITDataset(test_set, test_set)
 
 
-def get_alignment(
-    task: str, config: dict
-) -> tuple[HookedRootModule, HookedRootModule, dict]:
+def get_alignment(task: str, config: dict = {}):
     if "pvr" in task:
         default_config = {
             "mode": "q",
@@ -44,5 +48,15 @@ def get_alignment(
         }
         default_config.update(config)
         return get_mnist_pvr_corr(default_config, task)
+    if "ioi" in task:
+        from .ioi import corr
+        return corr
+    raise ValueError(f"Unknown task {task}")
 
+def get_default_corr(task: str) -> dict:
+    if "pvr" in task:
+        return get_alignment(task)[-1]
+    elif "ioi" in task:
+        from .ioi import corr_dict
+        return corr_dict
     raise ValueError(f"Unknown task {task}")

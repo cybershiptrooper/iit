@@ -17,7 +17,7 @@ class IOI_ModelPair(StrictIITModelPair):
             "use_per_token_check": False,
         }
         self.training_args = {**default_training_args, **self.training_args}
-        self.next_token = default_training_args["next_token"]
+        self.next_token = self.training_args["next_token"]
 
     @property
     def loss_fn(self):
@@ -25,14 +25,21 @@ class IOI_ModelPair(StrictIITModelPair):
             return self.__loss_fn
 
         def per_token_weighted_cross_entropy(output, target):
+            if target.shape == output.shape:
+                target = target.argmax(dim=-1) # convert one-hot to index for cross_entropy
             if len(output.shape) == 2:
                 return t.nn.functional.cross_entropy(output, target)
+            assert len(output.shape) == 3, ValueError(f"unexpected output of shape: {output.shape}")
             if self.next_token:
-                weight = t.ones(output.shape[1], device=DEVICE)
+                weight = t.ones(output.shape[1], device=DEVICE) # weight for each token
                 weight[-1] = 10
-                return t.nn.functional.cross_entropy(output, target, weight=weight)
+                weight = weight / weight.sum()
+                output = output.transpose(1, 2)
+                ce_loss = t.nn.functional.cross_entropy(output, target, reduction="none")
+                ce_weighted_avg = (ce_loss * weight).mean()
+                return ce_weighted_avg
             else:
-                return t.nn.functional.cross_entropy(output[:, -1, :], target[:, -1, :])
+                return t.nn.functional.cross_entropy(output[:, -1], target[:, -1])
 
         self.__loss_fn = per_token_weighted_cross_entropy
         return self.__loss_fn
