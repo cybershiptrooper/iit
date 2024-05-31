@@ -41,8 +41,20 @@ class SInhibitionHead(t.nn.Module):
         output a flag to the name mover head to NOT copy this name
         flag is -1 if no duplicate name here, and name token for the name to inhibit
         """
-        ret = tokens.clone()
+        ret = t.zeros_like(tokens)
+
+        # if duplicate is -1, we don't inhibit
         ret[duplicate == -1] = -1
+
+        # extract token positions we care about from duplicate
+        duplicate_pos_at_duplicates = t.where(duplicate != -1)
+        duplicate_pos_at_tokens = duplicate[*duplicate_pos_at_duplicates]
+        duplicate_pos_at_tokens = (duplicate_pos_at_duplicates[0], duplicate_pos_at_tokens)
+        duplicate_tokens = tokens[duplicate_pos_at_tokens]
+        assert ret[duplicate_pos_at_duplicates].abs().sum() == 0 # sanity check, to make sure we're not overwriting anything
+        # replace ret with the duplicated tokens
+        ret[duplicate_pos_at_duplicates] = duplicate_tokens
+        
         return ret
     
 class NameMoverHead(t.nn.Module):
@@ -125,6 +137,7 @@ class IOI_HL(HookedRootModule, HLModel):
         out = self.name_mover_head(input, s_inhibition)
         assert out.shape == input.shape + (self.d_vocab,)
         out = self.hook_name_mover(out)
+        show(f"out: {t.argmax(out, dim=-1)}")
         if not batched:
             out = out[0]
         return out
