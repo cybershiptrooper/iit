@@ -19,7 +19,7 @@ def train_ioi(
     device = args.device
     num_samples = args.num_samples
     epochs = args.epochs
-    use_wandb = args.save_to_wandb
+    use_wandb = args.use_wandb
 
     training_args = {
         "batch_size": args.batch_size,

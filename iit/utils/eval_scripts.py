@@ -21,7 +21,7 @@ def eval_ioi(args):
     weights = args.weights
     use_mean_cache = args.mean
     device = args.device
-    save_dir = os.path.join(args.output_dir, f"ioi")
+    save_dir = os.path.join(args.output_dir, f"ioi" if not args.next_token else "ioi_next_token")
     results_dir = os.path.join(save_dir, f"results_{weights}")
     batch_size = args.batch_size
     num_samples = args.num_samples

@@ -5,11 +5,11 @@ import torch as t
 if __name__ == "__main__":
     import argparse 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num-samples", type=int, default=12000)
+    parser.add_argument("--num-samples", type=int, default=15000)
     parser.add_argument("--epochs", type=int, default=1000)
     parser.add_argument("--use-wandb", action="store_true")
     parser.add_argument("--device", type=str, default="cuda" if t.cuda.is_available() else "cpu")
-    parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--batch-size", type=int, default=512)
     parser.add_argument("-lr", type=float, default=1e-3)
     parser.add_argument("-iit", type=float, default=1.0)
     parser.add_argument("-b", type=float, default=1.0)
