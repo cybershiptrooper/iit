@@ -1,5 +1,5 @@
 from .mnist_pvr.dataset import ImagePVRDataset
-from .mnist_pvr.utils import mnist_train, mnist_test
+from .mnist_pvr.utils import make_mnist_dataset
 from .mnist_pvr.get_alignment import get_alignment as get_mnist_pvr_corr
 from transformer_lens.hook_points import HookedRootModule
 from iit.utils.iit_dataset import IITDataset
@@ -21,6 +21,7 @@ def get_dataset(
             unique_per_quad = False
         else:
             raise ValueError(f"Unknown task {task}")
+        mnist_train, mnist_test = make_mnist_dataset()
         train_set = ImagePVRDataset(
             mnist_train,
             length=default_dataset_args["train_size"],

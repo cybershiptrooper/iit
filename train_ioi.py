@@ -19,6 +19,7 @@ if __name__ == "__main__":
     parser.add_argument("-single-loss", "--use-single-loss", action="store_true")
     parser.add_argument("--save-to-wandb", action="store_true")
     parser.add_argument("--output-dir", type=str, default="./results")
+    parser.add_argument("--include-mlp", action="store_true")
 
     args = parser.parse_args()
 

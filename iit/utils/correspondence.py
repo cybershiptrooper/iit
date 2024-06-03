@@ -1,6 +1,6 @@
 from iit.model_pairs.nodes import HLNode, LLNode
 
-class Correspondence(dict):
+class Correspondence(dict[HLNode, set[LLNode]]):
     def __init__(
         self,
         *args,

@@ -5,7 +5,7 @@ from iit.tasks.ioi import (
     make_ioi_dataset_and_hl,
     NAMES,
     ioi_cfg,
-    corr,
+    make_corr_dict,
     suffixes,
 )
 from iit.utils.correspondence import Correspondence
@@ -21,7 +21,9 @@ def eval_ioi(args):
     weights = args.weights
     use_mean_cache = args.mean
     device = args.device
-    save_dir = os.path.join(args.output_dir, f"ioi" if not args.next_token else "ioi_next_token")
+    save_dir = os.path.join(
+        args.output_dir, f"ioi" if not args.next_token else "ioi_next_token"
+    )
     results_dir = os.path.join(save_dir, f"results_{weights}")
     batch_size = args.batch_size
     num_samples = args.num_samples
@@ -37,9 +39,12 @@ def eval_ioi(args):
             args.next_token,
             [f"ll_model_{weights}.pth", f"corr_{weights}.json"],
             save_dir,
+            include_mlp=args.include_mlp,
         )
     try:
-        ll_model.load_state_dict(torch.load(f"{save_dir}/ll_model_{weights}.pth"))
+        ll_model.load_state_dict(
+            torch.load(f"{save_dir}/ll_model_{weights}.pth", map_location=device)
+        )
     except FileNotFoundError:
         raise FileNotFoundError(f"Model not found at {save_dir}")
 
@@ -48,11 +53,14 @@ def eval_ioi(args):
     if os.path.exists(corr_file):
         with open(corr_file, "r") as f:
             corr_dict = json.load(f)
-        corr = Correspondence.make_corr_from_dict(corr_dict, suffixes)
     else:
         print(f"WARNING: {corr_file} not found, using default corr_dict")
-
+        corr_dict = make_corr_dict(include_mlp=args.include_mlp)
+    corr = Correspondence.make_corr_from_dict(corr_dict, suffixes)
+    
     # load dataset
+    np.random.seed(0)
+    t.manual_seed(0)
     ioi_dataset, hl_model = make_ioi_dataset_and_hl(
         num_samples, ll_model, NAMES, verbose=True
     )

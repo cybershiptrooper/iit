@@ -65,20 +65,27 @@ def save_model(model_pair, args, task):
     if args.save_to_wandb:
         wandb.init(
             project="iit_models",
+            group="without_mlp" if not args.include_mlp else "with_mlp",
             name=f"{task}{next_token_str}_{model_suffix}",
         )
         wandb.save(f"{save_dir}/*", base_path=f"{save_dir}")
 
 
-def load_files_from_wandb(task, weights, next_token, files_to_download, base_path):
+def load_files_from_wandb(
+    task, weights, next_token, files_to_download, base_path, include_mlp=True
+):
     api = wandb.Api()
     runs = api.runs("iit_models")
     next_token_str = "_next_token" if next_token else ""
     for run in runs:
-        if (task in run.name) and (weights in run.name) and (next_token_str in run.name):
+        if (
+            (task in run.name)
+            and (weights in run.name)
+            and (next_token_str in run.name)
+            and (include_mlp == ("with_mlp" in run.group))
+        ):
             files = run.files()
             for file in files:
                 if any([file.name.endswith(f) for f in files_to_download]):
                     file.download(replace=True, root=base_path)
                     print(f"Downloaded {file.name}")
-                

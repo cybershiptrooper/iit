@@ -371,6 +371,17 @@ class IOIDatasetWrapper(IOIDataset):
                  device=DEVICE, **kwargs):
         super().__init__(*args, **kwargs)
         self.device = device
+        
+    def get_inputs(self):
+        items = [self.__getitem__(i) for i in range(len(self))]
+        inputs = [item[0] for item in items]
+        inputs_tensor = torch.stack(inputs)
+        return inputs_tensor
+    
+    def get_targets(self):
+        items = [self.__getitem__(i) for i in range(len(self))]
+        targets = [item[1] for item in items]
+        return targets
     
     def __getitem__(self, idx):
         x = super().__getitem__(idx)

@@ -7,7 +7,7 @@ from iit.utils.metric import *
 from iit.tasks.ioi import (
     NAMES,
     make_ioi_dataset_and_hl,
-    corr,
+    make_corr_dict,
     ioi_cfg,
 )
 from argparse import Namespace
@@ -57,7 +57,7 @@ def train_ioi(
     model_pair = mp.IOI_ModelPair(
         ll_model=ll_model,
         hl_model=hl_model,
-        corr=corr,
+        corr=make_corr_dict(include_mlp=args.include_mlp),
         training_args=training_args,
     )
     print("training ioi model pair")

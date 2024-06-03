@@ -2,13 +2,13 @@ import torchvision.datasets as datasets
 import torch as t
 import torchvision
 
-mnist_train = datasets.MNIST("./data", download=True)
-mnist_test = datasets.MNIST("./data", train=False, download=True)
-
+MNIST_CLASS_MAP = {k: [1, 1, 1, 1, 2, 2, 2, 3, 3, 3][k] for k in range(10)}
 mnist_size = 28
 
-MNIST_CLASS_MAP = {k: [1, 1, 1, 1, 2, 2, 2, 3, 3, 3][k] for k in range(10)}
-
+def make_mnist_dataset():
+    mnist_train = datasets.MNIST("./data", download=True)
+    mnist_test = datasets.MNIST("./data", train=False, download=True)
+    return mnist_train, mnist_test, 
 
 def visualize_datapoint(dataset, index):
     image, label, intermediate_vars = dataset[index]
