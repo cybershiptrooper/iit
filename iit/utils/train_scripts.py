@@ -9,7 +9,9 @@ from iit.tasks.ioi import (
     make_ioi_dataset_and_hl,
     make_corr_dict,
     ioi_cfg,
+    suffixes
 )
+from iit.utils.correspondence import Correspondence
 from argparse import Namespace
 
 
@@ -54,10 +56,12 @@ def train_ioi(
     train_set = IITDataset(train_ioi_dataset, train_ioi_dataset, seed=0)
     test_set = IITDataset(test_ioi_dataset, test_ioi_dataset, seed=0)
     print("making ioi model pair")
+    corr_dict = make_corr_dict(include_mlp=args.include_mlp)
+    corr = Correspondence.make_corr_from_dict(corr_dict, suffixes=suffixes)
     model_pair = mp.IOI_ModelPair(
         ll_model=ll_model,
         hl_model=hl_model,
-        corr=make_corr_dict(include_mlp=args.include_mlp),
+        corr=corr,
         training_args=training_args,
     )
     print("training ioi model pair")
