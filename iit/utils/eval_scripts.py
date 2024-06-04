@@ -22,7 +22,7 @@ def eval_ioi(args):
     use_mean_cache = args.mean
     device = args.device
     save_dir = os.path.join(
-        args.output_dir, f"ioi" if not args.next_token else "ioi_next_token"
+        args.output_dir, "ll_models", f"ioi" if not args.next_token else "ioi_next_token"
     )
     results_dir = os.path.join(save_dir, f"results_{weights}")
     batch_size = args.batch_size
@@ -98,9 +98,25 @@ def eval_ioi(args):
         za_result_in_circuit,
         use_mean_cache=use_mean_cache,
     )
-
+    suffix = f"_{args.categorical_metric}"
     save_result(df, results_dir)
     with open(f"{results_dir}/metric_collection.log", "w") as f:
         f.write(str(metric_collection))
         print("Results saved at", save_dir)
         print(metric_collection)
+
+    if args.use_wandb:
+        import wandb
+
+        wandb.init(
+            project="node_effect",
+            tags=[
+                "ioi{}".format("_next_token" if args.next_token else ""),
+                f"weight_{weights}",
+                f"matric"
+            ],
+            name=f"ioi{'_next_token' if args.next_token else ''}_weight_{weights}"
+        )
+        wandb.save(f"{results_dir}/*", base_path=f"{results_dir}")
+        wandb.log(metric_collection)
+        wandb.finish()

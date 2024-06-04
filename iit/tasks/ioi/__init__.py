@@ -35,13 +35,16 @@ def make_corr_dict(include_mlp=False, eval=False, use_pos_embed=False):
             ),
             "hook_out": [f"blocks.{n_layers-1}.hook_resid_post"],
         }
-    return {
+    ans = {
         "hook_duplicate": [all_attns[0]],
         # "hook_previous": ["blocks.1.attn.hook_result"],
         "hook_s_inhibition": [all_attns[2]],
         "hook_name_mover": [all_attns[4]],
-        "all_nodes_hook": [all_mlps[0]] if include_mlp else [],
     }
+    if include_mlp:
+        ans["all_nodes_hook"] = [all_mlps[0]]
+    return ans
+    
 
 
 corr_dict = make_corr_dict(include_mlp=False)

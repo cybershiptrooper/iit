@@ -65,10 +65,11 @@ class StrictIITModelPair(IITBehaviorModelPair):
             base_x, fwd_hooks=[(ll_node.name, self.make_ll_ablation_hook(ll_node))]
         )
         # print(out.shape, base_y.shape)
+        label_idx = self.get_label_idxs()
         ll_loss = (
-            loss_fn(out, base_y.to(self.ll_model.cfg.device))
+            loss_fn(out[label_idx.as_index], base_y[label_idx.as_index].to(self.ll_model.cfg.device))
             * self.training_args["strict_weight"]
-        )
+        ) # do this only for the tokens that we care about for IIT
         if not use_single_loss:
             self.step_on_loss(ll_loss, optimizer)
 

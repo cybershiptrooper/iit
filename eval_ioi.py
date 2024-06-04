@@ -37,6 +37,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output-dir", type=str, default="./results", help="Output directory"
     )
+    parser.add_argument(
+        "--include-mlp", action="store_true", help="Evaluate group 'with_mlp'"
+    )
+    parser.add_argument(
+        "--use-wandb", action="store_true", help="Use wandb for logging"
+    )
 
     args = parser.parse_args()
     eval_ioi(args)

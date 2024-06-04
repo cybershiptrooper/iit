@@ -23,7 +23,7 @@ def save_model(model_pair, args, task):
 
     # make save dirs
     next_token_str = "_next_token" if training_args["next_token"] else ""
-    save_dir = os.path.join(args.output_dir, f"{task}{next_token_str}")
+    save_dir = os.path.join(args.output_dir, "ll_models", f"{task}{next_token_str}")
     model_suffix = f"{int(100*args.b)}_{int(100*args.iit)}_{int(100*args.s)}"
     results_dir = os.path.join(save_dir, f"results_{model_suffix}")
     os.makedirs(results_dir, exist_ok=True)

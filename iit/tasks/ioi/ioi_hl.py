@@ -48,7 +48,7 @@ class SInhibitionHead(t.nn.Module):
 
         # extract token positions we care about from duplicate
         duplicate_pos_at_duplicates = t.where(duplicate != -1)
-        duplicate_pos_at_tokens = duplicate[*duplicate_pos_at_duplicates]
+        duplicate_pos_at_tokens = duplicate[duplicate_pos_at_duplicates[0], duplicate_pos_at_duplicates[1]]
         duplicate_pos_at_tokens = (duplicate_pos_at_duplicates[0], duplicate_pos_at_tokens)
         duplicate_tokens = tokens[duplicate_pos_at_tokens]
         assert ret[duplicate_pos_at_duplicates].abs().sum() == 0 # sanity check, to make sure we're not overwriting anything

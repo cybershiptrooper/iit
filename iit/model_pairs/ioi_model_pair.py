@@ -69,10 +69,8 @@ class IOI_ModelPair(StrictIITModelPair):
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
         # hl_output = t.nn.functional.softmax(hl_output, dim=-1)
         hl_argmax = t.argmax(hl_output[:, -1, :], dim=-1)
-        hl_one_hot = t.nn.functional.one_hot(hl_argmax, num_classes=hl_output.shape[-1])
-        hl_probs = hl_one_hot.float()
 
-        loss = loss_fn(ll_output[:, -1, :], hl_probs)
+        loss = loss_fn(ll_output[:, -1, :], hl_argmax)
         return loss
 
     def run_eval_step(

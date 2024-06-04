@@ -106,6 +106,10 @@ class BaseModelPair(ABC):
 
     @staticmethod
     def get_label_idxs():
+        '''
+        Returns the index of the label for which the IIT loss is computed. 
+        NOT to be used for computing the behavior loss.
+        '''
         return Ix[[None]]
 
     def make_hl_model(self, hl_graph):
@@ -170,7 +174,9 @@ class BaseModelPair(ABC):
         loss_fn: Callable[[Tensor, Tensor], Tensor],
     ):
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
-        loss = loss_fn(ll_output, hl_output)
+        label_idx = self.get_label_idxs()
+        # IIT loss is only computed on the tokens we care about
+        loss = loss_fn(ll_output[label_idx.as_index], hl_output[label_idx.as_index])
         return loss
 
     def clip_grad_fn(self):

@@ -117,9 +117,12 @@ class IITBehaviorModelPair(IITModelPair):
         atol = self.training_args["atol"]
 
         # compute IIT loss and accuracy
+        label_idx = self.get_label_idxs()
         hl_node = self.sample_hl_name()
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
         hl_output.to(ll_output.device)
+        hl_output = hl_output[label_idx.as_index]
+        ll_output = ll_output[label_idx.as_index]
         if self.hl_model.is_categorical():
             loss = loss_fn(ll_output, hl_output)
             if ll_output.shape == hl_output.shape:
