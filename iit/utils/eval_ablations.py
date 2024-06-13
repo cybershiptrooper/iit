@@ -315,6 +315,7 @@ def get_causal_effects_for_all_nodes(
     use_mean_cache=True,
     categorical_metric=Categorical_Metric.ACCURACY,
 ):
+    mean_cache = None
     if use_mean_cache:
         mean_cache = get_mean_cache(
             model_pair, uni_test_set, batch_size=batch_size
