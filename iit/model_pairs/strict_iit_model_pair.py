@@ -1,3 +1,4 @@
+from iit.model_pairs.base_model_pair import Callable, Tensor
 from iit.model_pairs.iit_behavior_model_pair import *
 import iit.utils.node_picker as node_picker
 
@@ -28,6 +29,12 @@ class StrictIITModelPair(IITBehaviorModelPair):
                 MetricStore("train/behavior_loss", MetricType.LOSS),
                 MetricStore("train/strict_loss", MetricType.LOSS),
             ]
+        )
+    
+    @staticmethod
+    def make_test_metrics():
+        return MetricStoreCollection(
+            IITBehaviorModelPair.make_test_metrics().metrics + [MetricStore("val/strict_accuracy", MetricType.ACCURACY)],
         )
 
     def sample_ll_node(self) -> LLNode:
@@ -89,3 +96,30 @@ class StrictIITModelPair(IITBehaviorModelPair):
             "train/behavior_loss": behavior_loss.item(),
             "train/strict_loss": ll_loss.item(),
         }
+
+    def run_eval_step(self, base_input, ablation_input, loss_fn: Callable[[Tensor, Tensor], Tensor]):
+        eval_returns = super().run_eval_step(base_input, ablation_input, loss_fn)
+        base_x, base_y, _ = base_input
+        ablation_x, ablation_y, _ = ablation_input
+        
+        _, cache = self.ll_model.run_with_cache(ablation_x)
+        label_idx = self.get_label_idxs()
+        base_y = base_y[label_idx.as_index].to(self.ll_model.cfg.device)
+        self.ll_cache = cache
+        accuracies = []
+        for node in self.nodes_not_in_circuit:
+            out = self.ll_model.run_with_hooks(
+                base_x, fwd_hooks=[(node.name, self.make_ll_ablation_hook(node))]
+            )
+            ll_output = out[label_idx.as_index]
+            if self.hl_model.is_categorical:
+                if ll_output.shape == base_y.shape:
+                    base_y = t.argmax(base_y, dim=-1)
+                top1 = t.argmax(ll_output, dim=-1)
+                accuracy = (top1 == base_y).float().mean().item()
+            else:
+                accuracy = ((ll_output - base_y).abs() < self.training_args["atol"]).float().mean().item()
+            accuracies.append(accuracy)
+        accuracy = np.mean(accuracies)
+        eval_returns["val/strict_accuracy"] = accuracy
+        return eval_returns

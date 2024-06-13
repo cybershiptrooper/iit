@@ -68,7 +68,9 @@ def save_model(model_pair, args, task):
             group="without_mlp" if not args.include_mlp else "with_mlp",
             name=f"{task}{next_token_str}_{model_suffix}",
         )
-        wandb.save(f"{save_dir}/*", base_path=f"{save_dir}")
+        wandb.save(f"{save_dir}/ll_model_{model_suffix}.pth", base_path=args.output_dir)
+        wandb.save(corr_file, base_path=args.output_dir)
+        wandb.save(training_args_file, base_path=args.output_dir)
 
 
 def load_files_from_wandb(

@@ -90,14 +90,22 @@ def _get_param_idx(
         raise NotImplementedError("Subspaces are not supported")
     if node_idx == none_ix or param_type == "b_O":
         param_idx = none_ix
-    elif param_type in ["W_Q", "W_K", "W_V"]:
-        param_idx = index.TorchIndex(node_idx.as_index[:-1])
-    elif param_type == "W_O":
-        idx_tuple = list(node_idx.as_index[:-1])
-        param_idx = index.TorchIndex([idx_tuple[0], idx_tuple[2], idx_tuple[1]])
-    elif param_type in ["b_Q", "b_K", "b_V"]:
-        idx_tuple = list(node_idx.as_index[:-1])
-        param_idx = index.TorchIndex([slice(None), idx_tuple[2]])
+    elif param_type in ["W_Q", "W_K", "W_V", "W_O", "b_Q", "b_K", "b_V"]:
+        param_idx = node_idx.as_index[-2]
+        if type(param_idx) == slice:
+            param_idx = index.TorchIndex(param_idx)
+        elif type(param_idx) == int:
+            param_idx = index.TorchIndex([param_idx])
+        else:
+            raise NotImplementedError(
+                f"Param of type '{param_type}' is expected to have index {none_ix}, but got {node_idx}"
+            )
+    # elif param_type == "W_O":
+    #     idx_tuple = list(node_idx.as_index[:-1])
+    #     param_idx = index.TorchIndex([idx_tuple[0], idx_tuple[2], idx_tuple[1]])
+    # elif param_type in ["b_Q", "b_K", "b_V"]:
+    #     idx_tuple = list(node_idx.as_index[:-1])
+    #     param_idx = index.TorchIndex([slice(None), idx_tuple[2]])
     else:
         raise NotImplementedError(
             f"Param of type '{param_type}' is expected to have index {none_ix}, but got {node_idx}"

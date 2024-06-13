@@ -101,7 +101,7 @@ def resample_ablate_node(
             base_ll_out = t.argmax(base_ll_out, dim=-1)[label_idx.as_index]
 
             # calculate metrics
-            ll_unchanged = ll_out == base_hl_out
+            ll_unchanged = ll_out == base_label
             ll_out_unchanged = ll_out == base_ll_out  # not used for result
             accuracy = base_ll_out == base_hl_out  # not used for result
             changed_result = (~label_unchanged).cpu().float() * (

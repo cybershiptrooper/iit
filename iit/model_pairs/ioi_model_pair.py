@@ -55,6 +55,7 @@ class IOI_ModelPair(StrictIITModelPair):
                 MetricStore("val/iit_loss", MetricType.LOSS),
                 MetricStore("val/IIA", MetricType.ACCURACY),
                 MetricStore("val/accuracy", MetricType.ACCURACY),
+                MetricStore("val/strict_accuracy", MetricType.ACCURACY),
                 PerTokenMetricStore("val/per_token_accuracy"),
             ]
         )
@@ -105,6 +106,33 @@ class IOI_ModelPair(StrictIITModelPair):
             # TODO: is there a better way?
             base_y = t.argmax(base_y, dim=-1)  # batch n_ctx
         per_token_accuracy = (top1 == base_y).float().mean(dim=0).cpu().numpy()
+
+
+        # strict accuracy
+        base_x, base_y, _ = base_input
+        ablation_x, ablation_y, _ = ablation_input
+        # ll_node = self.sample_ll_node() 
+        _, cache = self.ll_model.run_with_cache(ablation_x)
+        self.ll_cache = cache
+        label_idx = self.get_label_idxs()
+        base_y = base_y[label_idx.as_index].to(self.ll_model.cfg.device)
+        if self.hl_model.is_categorical:
+            if len(base_y.shape) == 2:
+                base_y = t.argmax(base_y, dim=-1)
+        accuracies = []
+        for node in self.nodes_not_in_circuit:
+            out = self.ll_model.run_with_hooks(
+                base_x, fwd_hooks=[(node.name, self.make_ll_ablation_hook(node))]
+            )
+            ll_output = out[label_idx.as_index]
+            if self.hl_model.is_categorical:
+                top1 = t.argmax(ll_output, dim=-1)
+                accuracy = (top1 == base_y).float().mean().item()
+            else:
+                accuracy = ((ll_output - base_y).abs() < self.training_args["atol"]).float().mean().item()
+            accuracies.append(accuracy)
+        strict_accuracy = np.mean(accuracies)
+
         return {
             "val/iit_loss": loss.item(),
             "val/IIA": IIA,
@@ -113,6 +141,7 @@ class IOI_ModelPair(StrictIITModelPair):
                 if self.next_token
                 else per_token_accuracy[-1]
             ),
+            "val/strict_accuracy": strict_accuracy,
             "val/per_token_accuracy": per_token_accuracy,
         }
 
@@ -130,6 +159,9 @@ class IOI_ModelPair(StrictIITModelPair):
         for metric in test_metrics:
             if metric.get_name() == "val/IIA" and metric.get_value() < 100:
                 print_if_verbose(f"IIA is not enough: {metric.get_value()}")
+                return False
+            elif metric.get_name() == "val/strict_accuracy" and metric.get_value() < 100:
+                print_if_verbose(f"strict_accuracy is not enough: {metric.get_value()}")
                 return False
             elif metric.get_name() == "val/per_token_accuracy":
                 per_toke_acc = metric.get_value()
