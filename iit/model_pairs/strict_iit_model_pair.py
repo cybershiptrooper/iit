@@ -1,5 +1,6 @@
 from iit.model_pairs.base_model_pair import Callable, Tensor
 from iit.model_pairs.iit_behavior_model_pair import *
+from iit.utils.metric import MetricStore
 import iit.utils.node_picker as node_picker
 
 
@@ -112,7 +113,7 @@ class StrictIITModelPair(IITBehaviorModelPair):
                 base_x, fwd_hooks=[(node.name, self.make_ll_ablation_hook(node))]
             )
             ll_output = out[label_idx.as_index]
-            if self.hl_model.is_categorical:
+            if self.hl_model.is_categorical():
                 if ll_output.shape == base_y.shape:
                     base_y = t.argmax(base_y, dim=-1)
                 top1 = t.argmax(ll_output, dim=-1)
@@ -123,3 +124,15 @@ class StrictIITModelPair(IITBehaviorModelPair):
         accuracy = np.mean(accuracies)
         eval_returns["val/strict_accuracy"] = accuracy
         return eval_returns
+
+
+    def _check_early_stop_condition(self, test_metrics: list[MetricStore]):
+        metrics_to_check = []
+        for metric in test_metrics:
+            if metric.get_name() == "val/strict_accuracy" and self.training_args["strict_weight"] > 0:
+                metrics_to_check.append(metric)
+            if metric.get_name() == "val/accuracy" and self.training_args["behavior_weight"] > 0:
+                metrics_to_check.append(metric)
+            if metric.get_name() == "val/IIA" and self.training_args["iit_weight"] > 0:
+                metrics_to_check.append(metric)
+        return super()._check_early_stop_condition(metrics_to_check)
