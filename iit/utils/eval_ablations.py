@@ -1,6 +1,6 @@
 import iit.model_pairs as mp
 import torch as t
-from typing import Dict, List
+from typing import Dict, List, Literal
 from iit.utils.node_picker import *
 from iit.utils.eval_metrics import *
 from tqdm import tqdm
@@ -26,9 +26,7 @@ def do_intervention(
     hooker: callable,
 ):
     _, cache = model_pair.ll_model.run_with_cache(ablation_input)
-    model_pair.ll_cache = (
-        cache  # TODO: make this better when converting to script
-    )
+    model_pair.ll_cache = cache  # TODO: make this better when converting to script
     out = model_pair.ll_model.run_with_hooks(
         base_input, fwd_hooks=[(node.name, hooker)]
     )
@@ -65,7 +63,7 @@ def resample_ablate_node(
             kl_div_clean = kl_div(base_ll_out, base_hl_out, label_idx)
             kl_div_corrupted = kl_div(corrupted_output, base_hl_out, label_idx)
             # normalize by the kl divergence of the corrupted output
-            kl = (kl - kl_div_clean) / (kl_div_corrupted - kl_div_clean + 1e-12) 
+            kl = (kl - kl_div_clean) / (kl_div_corrupted - kl_div_clean + 1e-12)
             result = (kl * (~label_unchanged).float()).sum().item() / (
                 (~label_unchanged).float().sum().item() + 1e-12
             )
@@ -89,7 +87,9 @@ def resample_ablate_node(
             kl = kl_div(ll_out, base_ll_out, label_idx)
             corrupted_output = model_pair.ll_model(ablation_x).squeeze()
             kl_div_corrupted = kl_div(corrupted_output, base_ll_out, label_idx)
-            kl = kl / (kl_div_corrupted + 1e-12) # normalize by the kl divergence of the corrupted output
+            kl = kl / (
+                kl_div_corrupted + 1e-12
+            )  # normalize by the kl divergence of the corrupted output
             result = (kl * (~label_unchanged).float()).sum().item() / (
                 (~label_unchanged).float().sum().item() + 1e-12
             )
@@ -107,9 +107,8 @@ def resample_ablate_node(
             changed_result = (~label_unchanged).cpu().float() * (
                 ~ll_unchanged
             ).cpu().float()
-            result = (
-                changed_result.sum().item()
-                / ((~label_unchanged).float().sum().item() + 1e-12)
+            result = changed_result.sum().item() / (
+                (~label_unchanged).float().sum().item() + 1e-12
             )
 
             if verbose:
@@ -117,9 +116,7 @@ def resample_ablate_node(
                     "label: ",
                     (~label_unchanged).sum().item() / len(label_unchanged),
                 )
-                print(
-                    "ll_vs_hl", (~ll_unchanged).sum().item() / len(ll_unchanged)
-                )
+                print("ll_vs_hl", (~ll_unchanged).sum().item() / len(ll_unchanged))
                 print(
                     "ll_vs_ll",
                     (~ll_out_unchanged).sum().item() / len(ll_out_unchanged),
@@ -136,9 +133,8 @@ def resample_ablate_node(
         changed_result = (~label_unchanged).cpu().float() * (
             ~ll_unchanged
         ).cpu().float()
-        result = (
-            changed_result.sum().item()
-            / ((~label_unchanged).float().sum().item() + 1e-12)
+        result = changed_result.sum().item() / (
+            (~label_unchanged).float().sum().item() + 1e-12
         )
 
         if verbose:
@@ -150,9 +146,7 @@ def resample_ablate_node(
                 "\ndot product:",
                 changed_result.mean(),
                 "\ndifference:",
-                (
-                    ll_out.float().squeeze() - base_y.float().to(ll_out.device)
-                ).mean(),
+                (ll_out.float().squeeze() - base_y.float().to(ll_out.device)).mean(),
                 "\nfinal:",
                 result,
             )
@@ -163,11 +157,18 @@ def check_causal_effect(
     model_pair: mp.BaseModelPair,
     dataset: IITDataset,
     batch_size: int = 256,
-    node_type: str = "a",
+    # string in ["a", "c", "n"]
+    node_type: Literal["a", "c", "n", "individual_c"] = "a",
     categorical_metric: Categorical_Metric = Categorical_Metric.ACCURACY,
+    hook_maker: callable = None,
     verbose: bool = False,
 ):
-    assert node_type in ["a", "c", "n"], "type must be one of 'a', 'c', or 'n'"
+    assert node_type in [
+        "a",
+        "c",
+        "n",
+        "individual_c",
+    ], "type must be one of 'a', 'c', 'n', or 'individual_c'"
     hookers = {}
     results = {}
     all_nodes = (
@@ -176,12 +177,21 @@ def check_causal_effect(
         else (
             get_all_nodes(model_pair.ll_model)
             if node_type == "a"
-            else get_nodes_in_circuit(model_pair.corr)
+            else (
+                get_all_individual_nodes_in_circuit(
+                    model_pair.ll_model, model_pair.corr
+                )
+                if node_type == "individual_c"
+                else get_nodes_in_circuit(model_pair.corr)
+            )
         )
     )
 
     for node in all_nodes:
-        hookers[node] = model_pair.make_ll_ablation_hook(node)
+        if hook_maker is not None:
+            hookers[node] = hook_maker(node)
+        else:
+            hookers[node] = model_pair.make_ll_ablation_hook(node)
         results[node] = 0
 
     loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
@@ -295,16 +305,12 @@ def ablate_nodes(
             atol=atol,
         )
         accuracy = (
-            t.isclose(base_ll_out.float(), base_hl_out.float(), atol=atol)
-            .cpu()
-            .float()
+            t.isclose(base_ll_out.float(), base_hl_out.float(), atol=atol).cpu().float()
         )
         changed_result = (~ll_unchanged).cpu().float() * accuracy
     if relative_change:
-        return changed_result.sum().item() / (
-            accuracy.float().sum().item() + 1e-6
-        )
-    
+        return changed_result.sum().item() / (accuracy.float().sum().item() + 1e-6)
+
     return (~ll_unchanged).cpu().float().mean()
 
 
@@ -317,9 +323,7 @@ def get_causal_effects_for_all_nodes(
 ):
     mean_cache = None
     if use_mean_cache:
-        mean_cache = get_mean_cache(
-            model_pair, uni_test_set, batch_size=batch_size
-        )
+        mean_cache = get_mean_cache(model_pair, uni_test_set, batch_size=batch_size)
     za_result_not_in_circuit = check_causal_effect_on_ablation(
         model_pair,
         uni_test_set,
@@ -369,9 +373,7 @@ def check_causal_effect_on_ablation(
     loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
     for base_in in tqdm(loader):
         for node, hooker in hookers.items():
-            results[node] += ablate_nodes(
-                model_pair, base_in, [(node.name, hooker)]
-            )
+            results[node] += ablate_nodes(model_pair, base_in, [(node.name, hooker)])
 
     for node, result in results.items():
         results[node] = result / len(loader)
@@ -409,9 +411,7 @@ def make_combined_dataframe_of_results(
     use_mean_cache: bool = False,
 ):
     df = make_dataframe_of_results(result_not_in_circuit, result_in_circuit)
-    df2 = make_dataframe_of_results(
-        za_result_not_in_circuit, za_result_in_circuit
-    )
+    df2 = make_dataframe_of_results(za_result_not_in_circuit, za_result_in_circuit)
     df2_causal_effect = df2.pop("causal effect")
     # rename the columns
     df["resample_ablate_effect"] = df.pop("causal effect")
@@ -451,7 +451,11 @@ def get_circuit_score(
     with torch.no_grad():
         for base_in in tqdm(loader):
             result += 1 - ablate_nodes(
-                model_pair, base_in, fwd_hooks, verbose=verbose, relative_change=relative_change
+                model_pair,
+                base_in,
+                fwd_hooks,
+                verbose=verbose,
+                relative_change=relative_change,
             )
     return result / len(loader)
 
