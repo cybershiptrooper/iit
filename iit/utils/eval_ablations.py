@@ -157,7 +157,6 @@ def check_causal_effect(
     model_pair: mp.BaseModelPair,
     dataset: IITDataset,
     batch_size: int = 256,
-    # string in ["a", "c", "n"]
     node_type: Literal["a", "c", "n", "individual_c"] = "a",
     categorical_metric: Categorical_Metric = Categorical_Metric.ACCURACY,
     hook_maker: callable = None,
@@ -320,6 +319,7 @@ def get_causal_effects_for_all_nodes(
     batch_size=256,
     use_mean_cache=True,
     categorical_metric=Categorical_Metric.ACCURACY,
+    individual_nodes=True,
 ):
     mean_cache = None
     if use_mean_cache:
@@ -335,7 +335,7 @@ def get_causal_effects_for_all_nodes(
     za_result_in_circuit = check_causal_effect_on_ablation(
         model_pair,
         uni_test_set,
-        node_type="c",
+        node_type="c" if not individual_nodes else "individual_c",
         verbose=False,
         mean_cache=mean_cache,
         categorical_metric=categorical_metric,
@@ -353,7 +353,12 @@ def check_causal_effect_on_ablation(
     verbose: bool = False,
 ):
     use_mean_cache = True if mean_cache else False
-    assert node_type in ["a", "c", "n"], "type must be one of 'a', 'c', or 'n'"
+    assert node_type in [
+        "a",
+        "c",
+        "n",
+        "individual_c",
+    ], "type must be one of 'a', 'c', 'n', or 'individual_c'"
     hookers = {}
     results = {}
     all_nodes = (
@@ -362,7 +367,13 @@ def check_causal_effect_on_ablation(
         else (
             get_all_nodes(model_pair.ll_model, model_pair.corr.get_suffixes())
             if node_type == "a"
-            else get_nodes_in_circuit(model_pair.corr)
+            else (
+                get_all_individual_nodes_in_circuit(
+                    model_pair.ll_model, model_pair.corr
+            )
+                if node_type == "individual_c"
+                else get_nodes_in_circuit(model_pair.corr)
+            )
         )
     )
 
