@@ -1,19 +1,19 @@
-import iit.model_pairs as mp
-import torch as t
-from typing import Dict, List
-
-from iit.model_pairs.base_model_pair import BaseModelPair
-from iit.model_pairs.iit_model_pair import IITModelPair
-from typing import Dict, List
-from iit.utils.node_picker import *
-from iit.utils.eval_metrics import *
-from tqdm import tqdm
-from iit.utils.iit_dataset import IITDataset
-import pandas as pd
-from transformer_lens.HookedTransformer import HookPoint
 import dataframe_image as dfi
 import os
+import pandas as pd
+import torch as t
 from enum import Enum
+from tqdm import tqdm
+from transformer_lens.HookedTransformer import HookPoint
+from typing import Dict, List
+from typing import Dict, List
+
+import iit.model_pairs as mp
+from iit.model_pairs.base_model_pair import BaseModelPair
+from iit.model_pairs.iit_model_pair import IITModelPair
+from iit.utils.eval_metrics import *
+from iit.utils.iit_dataset import IITDataset
+from iit.utils.node_picker import *
 
 
 class Categorical_Metric(Enum):
