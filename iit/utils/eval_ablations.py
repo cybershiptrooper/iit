@@ -217,12 +217,10 @@ def get_mean_cache(model, dataset: IITDataset, batch_size=8):
     loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
     mean_cache = {}
     for batch in tqdm(loader):
-        base_input = batch[0]
-        base_x = base_input[0]
         if isinstance(model, BaseModelPair):
-            _, cache = model.ll_model.run_with_cache(base_x)
+            _, cache = model.ll_model.run_with_cache(batch[0])
         elif isinstance(model, HookedTransformer):
-            _, cache = model.run_with_cache(base_x)
+            _, cache = model.run_with_cache(batch[0])
         else:
             raise ValueError(
                 f"model must be of type BaseModelPair or HookedTransformer, got {type(model)}"
