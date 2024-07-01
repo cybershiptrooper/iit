@@ -1,5 +1,3 @@
-import torch
-import os
 import transformer_lens
 
 from iit.model_pairs.ioi_model_pair import IOI_ModelPair
@@ -10,7 +8,6 @@ from iit.tasks.ioi import (
     make_corr_dict,
     suffixes,
 )
-from iit.utils.correspondence import Correspondence
 from iit.utils.eval_ablations import *
 import numpy as np
 from iit.utils.iit_dataset import IITDataset
