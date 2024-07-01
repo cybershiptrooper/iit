@@ -45,11 +45,17 @@ class IITDataset(Dataset):
 
     @staticmethod
     def get_encoded_input_from_torch_input(xy, device=DEVICE):
-        x, y, int_vars = zip(*xy)
+        zipped_data = tuple(zip(*xy))
+        x, y = zipped_data[0:2]
         x = torch.stack([x_i.to(device) for x_i in x])
         y = torch.stack([y_i.to(device) for y_i in y])
-        int_vars = torch.stack([iv.to(device) for iv in int_vars])
-        return x, y, int_vars
+
+        if len(zipped_data) == 3:
+            int_vars = zipped_data[2]
+            int_vars = torch.stack([iv.to(device) for iv in int_vars])
+            return x, y, int_vars
+        else:
+            return x, y
 
     @staticmethod
     def collate_fn(batch, device=DEVICE):

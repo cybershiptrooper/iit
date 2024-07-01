@@ -1,9 +1,7 @@
-import torch as t
 import transformer_lens
 
 from iit.model_pairs.ioi_model_pair import IOI_ModelPair
-from iit.utils.iit_dataset import IITDataset, train_test_split
-import iit.model_pairs as mp
+from iit.utils.iit_dataset import train_test_split
 from iit.model_pairs.base_model_pair import *
 from iit.utils.metric import *
 from iit.tasks.ioi import (
