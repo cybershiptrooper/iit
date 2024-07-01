@@ -1,6 +1,7 @@
 from torch import nn
+
+from iit.model_pairs.probed_sequential_pair import IITProbeSequentialPair
 from iit.utils.wrapper import get_hook_points
-from iit.model_pairs import IITProbeSequentialPair
 from iit.utils.probes import train_probes_on_model_pair, evaluate_probe
 from iit.tasks.task_loader import get_alignment, get_dataset
 import torch as t

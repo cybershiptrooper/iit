@@ -1,10 +1,10 @@
+from iit.model_pairs.strict_iit_model_pair import StrictIITModelPair
 from iit.utils.config import DEVICE
 from iit.utils.metric import *
 from typing import Callable
 from torch import Tensor
 import torch as t
 from iit.model_pairs.base_model_pair import HLNode
-from iit.model_pairs import IITBehaviorModelPair, StopGradModelPair, StrictIITModelPair
 import iit.utils.index as index
 
 

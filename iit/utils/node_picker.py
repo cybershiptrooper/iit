@@ -1,10 +1,11 @@
-import iit.utils.index as index
-import iit.model_pairs as mp
-from transformer_lens import HookedTransformer
 import torch as t
+from transformer_lens import HookedTransformer
+
+import iit.utils.index as index
+from iit.model_pairs.nodes import LLNode
 from iit.utils.correspondence import Correspondence
 
-LLParamNode = mp.LLNode
+LLParamNode = LLNode
 
 def get_all_nodes(
     model: HookedTransformer,
@@ -12,28 +13,28 @@ def get_all_nodes(
         "attn": "attn.hook_result",
         "mlp": "mlp.hook_post",
     },
-) -> list[mp.LLNode]:
+) -> list[LLNode]:
     nodes = []
     n_heads = model.cfg.n_heads
     n_layers = model.cfg.n_layers
     for layer in range(n_layers):
         hook_point = f"blocks.{layer}.{suffixes['attn']}"
         for head in range(n_heads):
-            head_node = mp.LLNode(hook_point, index.Ix[:, :, head, :])
+            head_node = LLNode(hook_point, index.Ix[:, :, head, :])
             nodes.append(head_node)
         hook_point = f"blocks.{layer}.{suffixes['mlp']}"
-        nodes.append(mp.LLNode(hook_point, index.Ix[[None]]))
+        nodes.append(LLNode(hook_point, index.Ix[[None]]))
     return nodes
 
 
-def get_nodes_in_circuit(hl_ll_corr) -> list[mp.LLNode]:
+def get_nodes_in_circuit(hl_ll_corr) -> list[LLNode]:
     nodes_in_circuit = set()
     for hl_node, ll_nodes in hl_ll_corr.items():
         nodes_in_circuit.update(ll_nodes)
     return list(nodes_in_circuit)
 
 
-def nodes_intersect(a: mp.LLNode, b: mp.LLNode) -> bool:
+def nodes_intersect(a: LLNode, b: LLNode) -> bool:
     # return true if there is any intersection
     if a.name != b.name:
         return False
@@ -43,7 +44,7 @@ def nodes_intersect(a: mp.LLNode, b: mp.LLNode) -> bool:
 def get_nodes_not_in_circuit(
     ll_model: HookedTransformer,
     hl_ll_corr: Correspondence
-) -> list[mp.LLNode]:
+) -> list[LLNode]:
     suffixes = hl_ll_corr.get_suffixes()
     all_nodes = get_all_nodes(ll_model, suffixes)
     nodes_in_circuit = get_nodes_in_circuit(hl_ll_corr)
@@ -57,7 +58,7 @@ def get_nodes_not_in_circuit(
 def get_post_nodes_not_in_circuit(
     ll_model: HookedTransformer,
     hl_ll_corr: Correspondence,
-) -> list[mp.LLNode]:
+) -> list[LLNode]:
     print("WARNING: This doesn't work when switching individual heads on/off.")
     suffixes = hl_ll_corr.get_suffixes()
     nodes_not_in_circuit = get_nodes_not_in_circuit(ll_model, hl_ll_corr)
@@ -74,13 +75,13 @@ def get_post_nodes_not_in_circuit(
                 append_node = False
                 break
         if append_node:
-            post_node = mp.LLNode(post_hook_name, index.Ix[[None]])
+            post_node = LLNode(post_hook_name, index.Ix[[None]])
             post_nodes_not_in_circuit.append(post_node)
     return post_nodes_not_in_circuit
 
 
 def _get_param_idx(
-    name: str, param: t.nn.parameter.Parameter, node: mp.LLNode
+    name: str, param: t.nn.parameter.Parameter, node: LLNode
 ) -> index.TorchIndex:
     param_type = name.split(".")[-1]
     node_idx = node.index
@@ -133,7 +134,7 @@ def get_activation_idx(node: LLParamNode) -> index.TorchIndex:
 
 
 def get_params_in_circuit(
-    hl_ll_corr: dict[str, set[mp.LLNode]], ll_model: HookedTransformer
+    hl_ll_corr: dict[str, set[LLNode]], ll_model: HookedTransformer
 ) -> list[LLParamNode]:
     nodes_in_circuit = get_nodes_in_circuit(hl_ll_corr)
     params_in_circuit = []
@@ -163,7 +164,7 @@ def get_all_params(ll_model: HookedTransformer) -> list[LLParamNode]:
 
 
 def get_params_not_in_circuit(
-    hl_ll_corr: dict[str, set[mp.LLNode]],
+    hl_ll_corr: dict[str, set[LLNode]],
     ll_model: HookedTransformer,
     filter_out_embed: bool = True,
 ) -> list[LLParamNode]:

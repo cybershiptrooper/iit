@@ -1,5 +1,7 @@
 import torch as t
 import transformer_lens
+
+from iit.model_pairs.ioi_model_pair import IOI_ModelPair
 from iit.utils.iit_dataset import IITDataset, train_test_split
 import iit.model_pairs as mp
 from iit.model_pairs.base_model_pair import *
@@ -58,7 +60,7 @@ def train_ioi(
     print("making ioi model pair")
     corr_dict = make_corr_dict(include_mlp=args.include_mlp)
     corr = Correspondence.make_corr_from_dict(corr_dict, suffixes=suffixes)
-    model_pair = mp.IOI_ModelPair(
+    model_pair = IOI_ModelPair(
         ll_model=ll_model,
         hl_model=hl_model,
         corr=corr,

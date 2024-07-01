@@ -1,6 +1,5 @@
+from iit.model_pairs.iit_behavior_model_pair import IITBehaviorModelPair
 from iit.tasks.task_loader import *
-from iit.model_pairs import *
-from iit.utils.iit_dataset import IITDataset
 
 training_args = {
     "lr": 0.001,
