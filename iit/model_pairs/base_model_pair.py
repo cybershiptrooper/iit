@@ -1,22 +1,19 @@
-from typing import Callable, Optional
-from dataclasses import dataclass
-import dataclasses
-import numpy as np
-from torch import Tensor
-import transformer_lens as tl
-from transformer_lens.hook_points import HookedRootModule, HookPoint
-import networkx as nx
-import wandb
-from tqdm import tqdm
-from torch.utils.data import DataLoader
-from iit.utils.index import TorchIndex, Ix
-from iit.utils.iit_dataset import IITDataset
-from iit.utils.config import *
-import torch as t
 from abc import ABC, abstractmethod
+from typing import Callable
 from typing import final, Any
-from iit.utils.metric import MetricStoreCollection, MetricType
+
+import networkx as nx
+import numpy as np
+import transformer_lens as tl
+import wandb
+from torch import Tensor
+from tqdm import tqdm
+from transformer_lens.hook_points import HookedRootModule, HookPoint
+
+from iit.utils.config import *
 from iit.utils.correspondence import Correspondence
+from iit.utils.iit_dataset import IITDataset
+from iit.utils.metric import MetricStoreCollection, MetricType
 from .nodes import *
 
 

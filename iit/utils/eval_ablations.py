@@ -1,15 +1,19 @@
-import iit.model_pairs as mp
-import torch as t
-from typing import Dict, List, Literal
-from iit.utils.node_picker import *
-from iit.utils.eval_metrics import *
-from tqdm import tqdm
-from iit.utils.iit_dataset import IITDataset
-import pandas as pd
-from transformer_lens.HookedTransformer import HookPoint
 import dataframe_image as dfi
 import os
+import pandas as pd
+import torch as t
 from enum import Enum
+from tqdm import tqdm
+from transformer_lens.HookedTransformer import HookPoint
+from typing import Dict, List
+from typing import Dict, List
+
+import iit.model_pairs as mp
+from iit.model_pairs.base_model_pair import BaseModelPair
+from iit.model_pairs.iit_model_pair import IITModelPair
+from iit.utils.eval_metrics import *
+from iit.utils.iit_dataset import IITDataset
+from iit.utils.node_picker import *
 
 
 class Categorical_Metric(Enum):
@@ -19,10 +23,10 @@ class Categorical_Metric(Enum):
 
 
 def do_intervention(
-    model_pair: mp.BaseModelPair,
+    model_pair: BaseModelPair,
     base_input,
     ablation_input,
-    node: mp.LLNode,
+    node: LLNode,
     hooker: callable,
 ):
     _, cache = model_pair.ll_model.run_with_cache(ablation_input)
@@ -34,10 +38,10 @@ def do_intervention(
 
 
 def resample_ablate_node(
-    model_pair: mp.IITModelPair,
+    model_pair: IITModelPair,
     base_in: tuple[t.Tensor, t.Tensor, t.Tensor],
     ablation_in: tuple[t.Tensor, t.Tensor, t.Tensor],
-    node: mp.LLNode,
+    node: LLNode,
     hooker: callable,
     atol=5e-2,
     verbose=False,
@@ -154,7 +158,7 @@ def resample_ablate_node(
 
 
 def check_causal_effect(
-    model_pair: mp.BaseModelPair,
+    model_pair: BaseModelPair,
     dataset: IITDataset,
     batch_size: int = 256,
     node_type: Literal["a", "c", "n", "individual_c"] = "a",
@@ -209,11 +213,11 @@ def check_causal_effect(
     return results
 
 
-def get_mean_cache(model, dataset, batch_size=8):
+def get_mean_cache(model, dataset: IITDataset, batch_size=8):
     loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
     mean_cache = {}
     for batch in tqdm(loader):
-        if isinstance(model, mp.BaseModelPair):
+        if isinstance(model, BaseModelPair):
             _, cache = model.ll_model.run_with_cache(batch[0])
         elif isinstance(model, HookedTransformer):
             _, cache = model.run_with_cache(batch[0])
@@ -229,7 +233,7 @@ def get_mean_cache(model, dataset, batch_size=8):
 
 
 def make_ablation_hook(
-    node: mp.LLNode,
+    node: LLNode,
     mean_cache: dict[str, t.Tensor],
     use_mean_cache: bool = True,
 ) -> callable:
@@ -251,11 +255,10 @@ def make_ablation_hook(
 
 
 def ablate_nodes(
-    model_pair: mp.IITModelPair,
-    base_in: tuple[t.Tensor, t.Tensor, t.Tensor],
+    model_pair: IITModelPair,
+    base_input: tuple[t.Tensor, t.Tensor, t.Tensor],
     fwd_hooks: List[tuple[str, callable]],
     atol=5e-2,
-    use_single_input=False,
     relative_change=True,
     verbose=False,
 ):
@@ -263,7 +266,7 @@ def ablate_nodes(
     Returns 1 - accuracy of the model after ablating the nodes in fwd_hooks.
     Args:
         model_pair: IITModelPair
-        base_in: input to the model
+        base_input: input to the model
         fwd_hooks: list of tuples of (str, callable)
         atol: float (default: 5e-2)
         use_single_input: bool (default: False)
@@ -272,15 +275,12 @@ def ablate_nodes(
         If relative_change is True, the accuracy is normalized wrt to the accuracy of the model before ablation.
         i.e., we return 1 - accuracy(after ablation | accuracy(before ablation) = 1)
     """
-    if not use_single_input:
-        base_x, base_y, _ = base_in
-    else:
-        base_x = base_in
+    base_x = base_input[0]
     ll_out = model_pair.ll_model.run_with_hooks(base_x, fwd_hooks=fwd_hooks)
 
     if model_pair.hl_model.is_categorical():
         # TODO: add other metrics here
-        base_hl_out = model_pair.hl_model(base_in).squeeze()
+        base_hl_out = model_pair.hl_model(base_input).squeeze()
         base_ll_out = model_pair.ll_model(base_x).squeeze()
         label_idx = model_pair.get_label_idxs()
         ll_out = t.argmax(ll_out, dim=-1)[label_idx.as_index]
@@ -296,7 +296,7 @@ def ablate_nodes(
         # given that it was the same before ablation
         changed_result = (~ll_unchanged).cpu().float() * accuracy.cpu().float()
     else:
-        base_hl_out = model_pair.hl_model(base_in).squeeze()
+        base_hl_out = model_pair.hl_model(base_input).squeeze()
         base_ll_out = model_pair.ll_model(base_x).squeeze()
         ll_unchanged = t.isclose(
             ll_out.float().squeeze(),
@@ -344,7 +344,7 @@ def get_causal_effects_for_all_nodes(
 
 
 def check_causal_effect_on_ablation(
-    model_pair: mp.BaseModelPair,
+    model_pair: BaseModelPair,
     dataset: IITDataset,
     batch_size: int = 256,
     node_type: str = "a",
@@ -435,9 +435,9 @@ def make_combined_dataframe_of_results(
 
 
 def get_circuit_score(
-    model_pair: mp.BaseModelPair,
+    model_pair: BaseModelPair,
     dataset: IITDataset,
-    nodes_to_ablate: List[mp.LLNode],
+    nodes_to_ablate: List[LLNode],
     mean_cache: Dict[str, t.Tensor] = None,
     batch_size: int = 256,
     use_mean_cache: bool = False,
@@ -472,7 +472,7 @@ def get_circuit_score(
 
 
 def save_result(
-    df: pd.DataFrame, save_dir: str, model_pair: mp.BaseModelPair = None, suffix=""
+    df: pd.DataFrame, save_dir: str, model_pair: BaseModelPair = None, suffix=""
 ):
     os.makedirs(save_dir, exist_ok=True)
     try:

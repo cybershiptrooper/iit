@@ -1,3 +1,5 @@
+import pickle
+
 from iit.model_pairs.nodes import HLNode, LLNode
 
 class Correspondence(dict[HLNode, set[LLNode]]):
@@ -68,3 +70,6 @@ class Correspondence(dict[HLNode, set[LLNode]]):
             },
             suffixes=suffixes,
         )
+
+    def save(self, filename: str):
+        pickle.dump(self, open(filename, "wb"))

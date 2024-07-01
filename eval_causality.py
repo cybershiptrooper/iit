@@ -1,14 +1,15 @@
-from iit.utils.wrapper import get_hook_points
-from iit.utils.config import DEVICE
-from iit.model_pairs import IITProbeSequentialPair
-from iit.tasks.task_loader import get_alignment, get_dataset
-import torch as t
-from tqdm import tqdm
-from iit.utils.iit_dataset import IITDataset
 import os
-import wandb
 from datetime import datetime
+
+import torch as t
+import wandb
+from tqdm import tqdm
+
+from iit.model_pairs.probed_sequential_pair import IITProbeSequentialPair
+from iit.tasks.task_loader import get_alignment, get_dataset
+from iit.utils.config import DEVICE
 from iit.utils.plotter import plot_ablation_stats
+from iit.utils.wrapper import get_hook_points
 
 
 def evaluate_model_on_ablations(

@@ -1,6 +1,8 @@
 import torch
 import os
 import transformer_lens
+
+from iit.model_pairs.ioi_model_pair import IOI_ModelPair
 from iit.tasks.ioi import (
     make_ioi_dataset_and_hl,
     NAMES,
@@ -65,7 +67,7 @@ def eval_ioi(args):
         num_samples, ll_model, NAMES, verbose=True
     )
 
-    model_pair = mp.IOI_ModelPair(ll_model=ll_model, hl_model=hl_model, corr=corr)
+    model_pair = IOI_ModelPair(ll_model=ll_model, hl_model=hl_model, corr=corr)
 
     test_set = IITDataset(ioi_dataset, ioi_dataset, seed=0)
 
