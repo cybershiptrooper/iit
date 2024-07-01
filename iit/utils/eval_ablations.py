@@ -462,11 +462,10 @@ def get_circuit_score(
     loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
     result = 0
     with torch.no_grad():
-        for batch in tqdm(loader):
-            base_input = batch[0]
+        for base_in in tqdm(loader):
             result += 1 - ablate_nodes(
                 model_pair,
-                base_input,
+                base_in,
                 fwd_hooks,
                 verbose=verbose,
                 relative_change=relative_change,
