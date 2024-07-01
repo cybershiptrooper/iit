@@ -113,7 +113,7 @@ class IOI_HL(HookedRootModule, HLModel):
     
     def forward(self, args, verbose=False):
         show = print if verbose else lambda *args, **kwargs: None
-        input, label, _intermediate_data = args
+        input, label = args[0:2]
         batched = True
         if len(input.shape) == 1:
             batched = False

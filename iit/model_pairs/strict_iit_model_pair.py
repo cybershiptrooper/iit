@@ -64,8 +64,8 @@ class StrictIITModelPair(IITBehaviorModelPair):
 
         # loss for nodes that are not in the circuit
         # should not have causal effect on the high-level output
-        base_x, base_y, _ = base_input
-        ablation_x, ablation_y, _ = ablation_input
+        base_x, base_y = base_input[0:2]
+        ablation_x, ablation_y = ablation_input[0:2]
         ll_node = self.sample_ll_node()
         _, cache = self.ll_model.run_with_cache(ablation_x)
         self.ll_cache = cache
@@ -100,8 +100,8 @@ class StrictIITModelPair(IITBehaviorModelPair):
 
     def run_eval_step(self, base_input, ablation_input, loss_fn: Callable[[Tensor, Tensor], Tensor]):
         eval_returns = super().run_eval_step(base_input, ablation_input, loss_fn)
-        base_x, base_y, _ = base_input
-        ablation_x, ablation_y, _ = ablation_input
+        base_x, base_y = base_input[0:2]
+        ablation_x, ablation_y = ablation_input[0:2]
         
         _, cache = self.ll_model.run_with_cache(ablation_x)
         label_idx = self.get_label_idxs()

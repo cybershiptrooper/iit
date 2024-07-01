@@ -61,7 +61,7 @@ class IITBehaviorModelPair(IITModelPair):
         )
 
     def get_behaviour_loss_over_batch(self, base_input, loss_fn):
-        base_x, base_y, _ = base_input
+        base_x, base_y = base_input[0:2]
         output = self.ll_model(base_x)
         behavior_loss = loss_fn(output, base_y)
         return behavior_loss
@@ -136,7 +136,7 @@ class IITBehaviorModelPair(IITModelPair):
             IIA = ((ll_output - hl_output).abs() < atol).float().mean().item()
 
         # compute behavioral accuracy
-        base_x, base_y, _ = base_input
+        base_x, base_y = base_input[0:2]
         output = self.ll_model(base_x)
         if self.hl_model.is_categorical():
             top1 = t.argmax(output, dim=-1)

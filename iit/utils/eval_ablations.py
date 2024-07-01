@@ -45,8 +45,8 @@ def resample_ablate_node(
     verbose=False,
     categorical_metric: Categorical_Metric = Categorical_Metric.ACCURACY,
 ):  # TODO: change name to reflect that it's not just for resampling
-    base_x, base_y, _ = base_in
-    ablation_x, ablation_y, _ = ablation_in
+    base_x, base_y = base_in[0:2]
+    ablation_x, ablation_y = ablation_in[0:2]
     ll_out = do_intervention(model_pair, base_x, ablation_x, node, hooker)
     base_ll_out = model_pair.ll_model(base_x).squeeze()  # not used for result
     base_hl_out = model_pair.hl_model(base_in).squeeze()
