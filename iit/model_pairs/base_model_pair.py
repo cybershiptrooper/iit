@@ -75,13 +75,9 @@ class BaseModelPair(ABC):
     def do_intervention(
         self, base_input, ablation_input, hl_node: HLNode, verbose=False
     ) -> tuple[Tensor, Tensor]:
-        ablation_x, ablation_y, ablation_intermediate_vars = ablation_input
-        base_x, base_y, base_intermediate_vars = base_input
+        ablation_x, ablation_y = ablation_input[0:2]
+        base_x, base_y = base_input[0:2]
         hl_ablation_output, self.hl_cache = self.hl_model.run_with_cache(ablation_input)
-
-        # assert torch.allclose(
-        #     hl_ablation_output.squeeze(), ablation_y
-        # ), f"Ablation output {hl_ablation_output} does not match label {ablation_y}"
 
         ll_ablation_output, self.ll_cache = self.ll_model.run_with_cache(ablation_x)
         ll_nodes = self.corr[hl_node]

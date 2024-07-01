@@ -98,7 +98,7 @@ class IOI_ModelPair(StrictIITModelPair):
         IIA = accuracy.item()
 
         # compute behavioral accuracy
-        base_x, base_y, _ = base_input
+        base_x, base_y = base_input[0:2]
         output = self.ll_model(base_x)
         top1 = t.argmax(output, dim=-1)  # batch n_ctx
         if output.shape == base_y.shape:
@@ -109,8 +109,8 @@ class IOI_ModelPair(StrictIITModelPair):
 
 
         # strict accuracy
-        base_x, base_y, _ = base_input
-        ablation_x, ablation_y, _ = ablation_input
+        base_x, base_y = base_input[0:2]
+        ablation_x, ablation_y = ablation_input[0:2]
         # ll_node = self.sample_ll_node() 
         _, cache = self.ll_model.run_with_cache(ablation_x)
         self.ll_cache = cache
