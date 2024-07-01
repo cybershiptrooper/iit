@@ -33,6 +33,15 @@ def get_nodes_in_circuit(hl_ll_corr) -> list[LLNode]:
         nodes_in_circuit.update(ll_nodes)
     return list(nodes_in_circuit)
 
+def get_all_individual_nodes_in_circuit(ll_model: HookedTransformer, hl_ll_corr: Correspondence) -> list[mp.LLNode]:
+    suffixes = hl_ll_corr.get_suffixes()
+    all_nodes = get_all_nodes(ll_model, suffixes)
+    nodes_in_circuit = get_nodes_in_circuit(hl_ll_corr)
+    individual_nodes_in_circuit = []
+    for node in all_nodes:
+        if any(nodes_intersect(node, c) for c in nodes_in_circuit):
+            individual_nodes_in_circuit.append(node)
+    return individual_nodes_in_circuit
 
 def nodes_intersect(a: LLNode, b: LLNode) -> bool:
     # return true if there is any intersection
