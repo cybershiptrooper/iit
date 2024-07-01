@@ -79,16 +79,12 @@ class IITDataset(Dataset):
 
 
 def train_test_split(dataset, test_size=0.2, random_state=None):
-    total_len = len(dataset)
-    test_len = int(total_len * test_size)
-    train_len = total_len - test_len
-
-    random_split_args = {
-        "dataset": dataset,
-        "lengths": [train_len, test_len],
-    }
-
-    if random_state is not None:
-        random_split_args["generator"] = torch.Generator().manual_seed(random_state)
-
-    return torch.utils.data.random_split(**random_split_args)
+    n = len(dataset)
+    split = int(n * test_size)
+    if random_state is None:
+        return torch.utils.data.random_split(dataset, [n - split, split])
+    return torch.utils.data.random_split(
+        dataset,
+        [n - split, split],
+        generator=torch.Generator().manual_seed(random_state),
+    )
