@@ -33,7 +33,7 @@ def get_nodes_in_circuit(hl_ll_corr) -> list[LLNode]:
         nodes_in_circuit.update(ll_nodes)
     return list(nodes_in_circuit)
 
-def get_all_individual_nodes_in_circuit(ll_model: HookedTransformer, hl_ll_corr: Correspondence) -> list[mp.LLNode]:
+def get_all_individual_nodes_in_circuit(ll_model: HookedTransformer, hl_ll_corr: Correspondence) -> list[LLNode]:
     suffixes = hl_ll_corr.get_suffixes()
     all_nodes = get_all_nodes(ll_model, suffixes)
     nodes_in_circuit = get_nodes_in_circuit(hl_ll_corr)
