@@ -36,6 +36,12 @@ class IITDataset(Dataset):
 
         base_input = self.base_data[base_index]
         ablation_input = self.ablation_data[ablation_index]
+
+        # make sure that there is always a batch dimension
+        if len(base_input.shape) == 1:
+            base_input = base_input.unsqueeze(0)
+            ablation_input = ablation_input.unsqueeze(0)
+
         return base_input, ablation_input
 
     def __len__(self):
@@ -59,6 +65,10 @@ class IITDataset(Dataset):
 
     @staticmethod
     def collate_fn(batch, device=DEVICE):
+        if not isinstance(batch, list):
+            # if batch is a single element, because batch_size was 1 or None, it is a tuple instead of a list
+            batch = [batch]
+
         base_input, ablation_input = zip(*batch)
         return IITDataset.get_encoded_input_from_torch_input(
             base_input, device
