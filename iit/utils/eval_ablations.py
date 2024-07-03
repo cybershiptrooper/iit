@@ -26,7 +26,8 @@ def do_intervention(
     node: LLNode,
     hooker: callable,
 ):
-    _, cache = model_pair.ll_model.run_with_cache(ablation_input)
+    ablation_x = ablation_input[0]
+    _, cache = model_pair.ll_model.run_with_cache(ablation_x)
     model_pair.ll_cache = cache  # TODO: make this better when converting to script
     out = model_pair.ll_model.run_with_hooks(
         base_input, fwd_hooks=[(node.name, hooker)]

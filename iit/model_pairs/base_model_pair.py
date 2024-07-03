@@ -74,8 +74,7 @@ class BaseModelPair(ABC):
     ) -> tuple[Tensor, Tensor]:
         ablation_x, ablation_y = ablation_input[0:2]
         base_x, base_y = base_input[0:2]
-        hl_ablation_output, self.hl_cache = self.hl_model.run_with_cache(ablation_input)
-
+        hl_ablation_output, self.hl_cache = self.hl_model.run_with_cache(ablation_x)
         ll_ablation_output, self.ll_cache = self.ll_model.run_with_cache(ablation_x)
         ll_nodes = self.corr[hl_node]
 
