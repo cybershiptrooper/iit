@@ -79,7 +79,7 @@ class BaseModelPair(ABC):
         ll_nodes = self.corr[hl_node]
 
         hl_output = self.hl_model.run_with_hooks(
-            base_input, fwd_hooks=[(hl_node.name, self.make_hl_ablation_hook(hl_node))]
+            base_x, fwd_hooks=[(hl_node.name, self.make_hl_ablation_hook(hl_node))]
         )
         ll_output = self.ll_model.run_with_hooks(
             base_x,
