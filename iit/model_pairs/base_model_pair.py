@@ -14,7 +14,7 @@ from iit.utils.config import *
 from iit.utils.correspondence import Correspondence
 from iit.utils.iit_dataset import IITDataset
 from iit.utils.metric import MetricStoreCollection, MetricType
-from .nodes import *
+from iit.model_pairs.nodes import HLNode, LLNode, HookName
 
 
 class BaseModelPair(ABC):

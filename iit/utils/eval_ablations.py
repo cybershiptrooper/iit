@@ -1,18 +1,27 @@
-import dataframe_image as dfi
 import os
-import pandas as pd
 from enum import Enum
-
-from torch.utils.data import Dataset
-from tqdm import tqdm
-from transformer_lens.HookedTransformer import HookPoint
 from typing import Dict, List, Literal
 
+import dataframe_image as dfi
+import pandas as pd
+import torch as t
+from torch.utils.data import Dataset
+from tqdm import tqdm
+from transformer_lens import HookedTransformer
+from transformer_lens.HookedTransformer import HookPoint
+
+import iit.utils.index as index
 from iit.model_pairs.base_model_pair import BaseModelPair
 from iit.model_pairs.iit_model_pair import IITModelPair
-from iit.utils.eval_metrics import *
+from iit.model_pairs.nodes import LLNode
+from iit.utils.eval_metrics import kl_div
 from iit.utils.iit_dataset import IITDataset
-from iit.utils.node_picker import *
+from iit.utils.node_picker import (
+    get_all_individual_nodes_in_circuit,
+    get_all_nodes,
+    get_nodes_in_circuit,
+    get_nodes_not_in_circuit,
+)
 
 
 class Categorical_Metric(Enum):
@@ -23,15 +32,25 @@ class Categorical_Metric(Enum):
 
 def do_intervention(
     model_pair: BaseModelPair,
-    base_input,
-    ablation_input,
+    base_input: t.Tensor,
+    ablation_input: t.Tensor,
     node: LLNode,
-    hooker: callable,
+    hook_fn: callable,
 ):
+    """
+    Runs the model with ablation_input and caches the result. 
+    Then runs the model with base_input and with hook_fn applied to the node.
+    Args:
+        model_pair: BaseModelPair
+        base_input: t.Tensor
+        ablation_input: t.Tensor
+        node: LLNode
+        hook_fn: callable
+    """
     _, cache = model_pair.ll_model.run_with_cache(ablation_input)
     model_pair.ll_cache = cache  # TODO: make this better when converting to script
     out = model_pair.ll_model.run_with_hooks(
-        base_input, fwd_hooks=[(node.name, hooker)]
+        base_input, fwd_hooks=[(node.name, hook_fn)]
     )
     return out
 
@@ -41,14 +60,14 @@ def resample_ablate_node(
     base_in: tuple[t.Tensor, t.Tensor, t.Tensor],
     ablation_in: tuple[t.Tensor, t.Tensor, t.Tensor],
     node: LLNode,
-    hooker: callable,
+    hook_fn: callable,
     atol=5e-2,
     verbose=False,
     categorical_metric: Categorical_Metric = Categorical_Metric.ACCURACY,
 ):  # TODO: change name to reflect that it's not just for resampling
     base_x, base_y = base_in[0:2]
     ablation_x, ablation_y = ablation_in[0:2]
-    ll_out = do_intervention(model_pair, base_x, ablation_x, node, hooker)
+    ll_out = do_intervention(model_pair, base_x, ablation_x, node, hook_fn)
     base_ll_out = model_pair.ll_model(base_x).squeeze()  # not used for result
     base_hl_out = model_pair.hl_model(base_in).squeeze()
     if verbose:
@@ -171,7 +190,7 @@ def check_causal_effect(
         "n",
         "individual_c",
     ], "type must be one of 'a', 'c', 'n', or 'individual_c'"
-    hookers = {}
+    hook_fns = {}
     results = {}
     all_nodes = (
         get_nodes_not_in_circuit(model_pair.ll_model, model_pair.corr)
@@ -191,14 +210,14 @@ def check_causal_effect(
 
     for node in all_nodes:
         if hook_maker is not None:
-            hookers[node] = hook_maker(node)
+            hook_fns[node] = hook_maker(node)
         else:
-            hookers[node] = model_pair.make_ll_ablation_hook(node)
+            hook_fns[node] = model_pair.make_ll_ablation_hook(node)
         results[node] = 0
 
     loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
     for base_in, ablation_in in tqdm(loader):
-        for node, hooker in hookers.items():
+        for node, hooker in hook_fns.items():
             result = resample_ablate_node(
                 model_pair,
                 base_in,
@@ -370,7 +389,7 @@ def check_causal_effect_on_ablation(
             else (
                 get_all_individual_nodes_in_circuit(
                     model_pair.ll_model, model_pair.corr
-            )
+                )
                 if node_type == "individual_c"
                 else get_nodes_in_circuit(model_pair.corr)
             )
@@ -460,7 +479,7 @@ def get_circuit_score(
         )
     loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
     result = 0
-    with torch.no_grad():
+    with t.no_grad():
         for batch in tqdm(loader):
             base_input = batch[0]
             result += 1 - ablate_nodes(
