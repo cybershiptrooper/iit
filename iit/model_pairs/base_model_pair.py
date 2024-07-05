@@ -163,13 +163,13 @@ class BaseModelPair(ABC):
     ) -> Callable[[Tensor, HookPoint], Tensor]:
 
         def ll_ablation_hook(hook_point_out: Tensor, hook: HookPoint) -> Tensor:
-            keep_mask = t.ones_like(hook_point_out)
+            out = hook_point_out.clone()
             index = ll_node.index if ll_node.index is not None else Ix[[None]]
-            keep_mask[index.as_index] = 0
             if ll_node.subspace is not None:
                 subspace = [slice(None)]*(hook_point_out.dim()-1) + [ll_node.subspace]
-                keep_mask[tuple(subspace)] = 0
-            hook_point_out = keep_mask*hook_point_out + (1-keep_mask)*self.ll_cache[hook.name]
+                out[index.as_index][tuple(subspace)] = self.ll_cache[hook.name][index.as_index][tuple(subspace)]
+            else:
+                out[index.as_index] = self.ll_cache[hook.name][index.as_index]
             return hook_point_out
 
         return ll_ablation_hook
