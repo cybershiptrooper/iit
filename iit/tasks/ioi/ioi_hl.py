@@ -104,7 +104,10 @@ class IOI_HL(HookedRootModule, HLModel):
     
     def forward(self, args, verbose=False):
         show = print if verbose else lambda *args, **kwargs: None
-        input, label = args[0:2]
+        if args is tuple:
+            input = args[0]
+        else:
+            input = args
         batched = True
         if len(input.shape) == 1:
             batched = False
