@@ -81,11 +81,11 @@ class BaseModelPair(ABC):
         ablation_x, ablation_y = ablation_input[0:2]
         base_x, base_y = base_input[0:2]
 
-        hl_model_input = base_x
+        hl_model_input = ablation_x
         try:
             # Special check for some HL models that use intermediate variables (e.g. PVR)
             if self.hl_model.uses_intermediate_variables():
-                hl_model_input = base_input
+                hl_model_input = ablation_input
         except AttributeError:
             pass
 
