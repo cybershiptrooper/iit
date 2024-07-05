@@ -72,17 +72,29 @@ class BaseModelPair(ABC):
     ##### Mutable methods you can override ####
     ###########################################
     def do_intervention(
-        self, base_input, ablation_input, hl_node: HLNode, verbose=False
+        self,
+        base_input: tuple[t.Tensor, t.Tensor, t.Tensor],
+        ablation_input: tuple[t.Tensor, t.Tensor, t.Tensor],
+        hl_node: HLNode,
+        verbose=False
     ) -> tuple[Tensor, Tensor]:
         ablation_x, ablation_y = ablation_input[0:2]
         base_x, base_y = base_input[0:2]
-        hl_ablation_output, self.hl_cache = self.hl_model.run_with_cache(ablation_input)
 
+        hl_model_input = base_x
+        try:
+            # Special check for some HL models that use intermediate variables (e.g. PVR)
+            if self.hl_model.uses_intermediate_variables():
+                hl_model_input = base_input
+        except AttributeError:
+            pass
+
+        hl_ablation_output, self.hl_cache = self.hl_model.run_with_cache(hl_model_input)
         ll_ablation_output, self.ll_cache = self.ll_model.run_with_cache(ablation_x)
         ll_nodes = self.corr[hl_node]
 
         hl_output = self.hl_model.run_with_hooks(
-            base_input, fwd_hooks=[(hl_node.name, self.make_hl_ablation_hook(hl_node))]
+            hl_model_input, fwd_hooks=[(hl_node.name, self.make_hl_ablation_hook(hl_node))]
         )
         ll_output = self.ll_model.run_with_hooks(
             base_x,
@@ -165,7 +177,7 @@ class BaseModelPair(ABC):
         self,
         base_input,
         ablation_input,
-        hl_node: HookName,
+        hl_node: HLNode,
         loss_fn: Callable[[Tensor, Tensor], Tensor],
     ):
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)

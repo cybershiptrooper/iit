@@ -62,8 +62,8 @@ class IOI_ModelPair(StrictIITModelPair):
 
     def get_IIT_loss_over_batch(
         self,
-        base_input,
-        ablation_input,
+        base_input: tuple[t.Tensor, t.Tensor, t.Tensor],
+        ablation_input: tuple[t.Tensor, t.Tensor, t.Tensor],
         hl_node: HLNode,
         loss_fn: Callable[[Tensor, Tensor], Tensor],
     ):

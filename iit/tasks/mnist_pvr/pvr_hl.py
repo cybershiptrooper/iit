@@ -23,6 +23,9 @@ class MNIST_PVR_HL(HookedRootModule, HLModel):
         )
         self.setup()
 
+    def uses_intermediate_variables(self):
+        return True
+
     def is_categorical(self):
         return True
 
