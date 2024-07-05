@@ -10,11 +10,13 @@ from torch import Tensor
 from tqdm import tqdm
 from transformer_lens.hook_points import HookedRootModule, HookPoint
 
-from iit.utils.config import *
+from iit.utils.config import WANDB_ENTITY
 from iit.utils.correspondence import Correspondence
 from iit.utils.iit_dataset import IITDataset
 from iit.utils.metric import MetricStoreCollection, MetricType
 from iit.model_pairs.nodes import HLNode, LLNode, HookName
+import torch as t
+from iit.utils.index import Ix
 
 
 class BaseModelPair(ABC):
