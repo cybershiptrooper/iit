@@ -170,7 +170,7 @@ class BaseModelPair(ABC):
                 out[index.as_index][tuple(subspace)] = self.ll_cache[hook.name][index.as_index][tuple(subspace)]
             else:
                 out[index.as_index] = self.ll_cache[hook.name][index.as_index]
-            return hook_point_out
+            return out
 
         return ll_ablation_hook
 
