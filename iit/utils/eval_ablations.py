@@ -2,6 +2,8 @@ import dataframe_image as dfi
 import os
 import pandas as pd
 from enum import Enum
+
+from torch.utils.data import Dataset
 from tqdm import tqdm
 from transformer_lens.HookedTransformer import HookPoint
 from typing import Dict, List, Literal
@@ -210,12 +212,11 @@ def check_causal_effect(
     return results
 
 
-def get_mean_cache(model, dataset: IITDataset, batch_size=8):
+def get_mean_cache(model, dataset: Dataset, batch_size=8):
     loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
     mean_cache = {}
     for batch in tqdm(loader):
-        base_input = batch[0]
-        base_x = base_input[0]
+        base_x = batch[0]
         if isinstance(model, BaseModelPair):
             _, cache = model.ll_model.run_with_cache(base_x)
         elif isinstance(model, HookedTransformer):
