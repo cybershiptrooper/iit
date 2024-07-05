@@ -68,7 +68,7 @@ def evaluate_model_on_ablations(
                             ablated_input[2].unsqueeze(0),
                         )
                     hl_output, ll_output = model_pair.do_intervention(
-                        base_input, ablated_input, hl_node.name
+                        base_input, ablated_input, hl_node
                     )
                     ablated_y = ablated_input[1]
                     base_y = base_input[1]
