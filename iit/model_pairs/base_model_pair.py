@@ -158,18 +158,19 @@ class BaseModelPair(ABC):
         out = self.hl_cache[hook.name]
         return out
 
-    # TODO extend to position and subspace...
     def make_ll_ablation_hook(
         self, ll_node: LLNode
     ) -> Callable[[Tensor, HookPoint], Tensor]:
-        if ll_node.subspace is not None:
-            raise NotImplementedError
 
         def ll_ablation_hook(hook_point_out: Tensor, hook: HookPoint) -> Tensor:
-            out = hook_point_out.clone()
+            keep_mask = t.ones_like(hook_point_out)
             index = ll_node.index if ll_node.index is not None else Ix[[None]]
-            out[index.as_index] = self.ll_cache[hook.name][index.as_index]
-            return out
+            keep_mask[index.as_index] = 0
+            if ll_node.subspace is not None:
+                subspace = [slice(None)]*(hook_point_out.dim()-1) + [ll_node.subspace]
+                keep_mask[tuple(subspace)] = 0
+            hook_point_out = keep_mask*hook_point_out + (1-keep_mask)*self.ll_cache[hook.name]
+            return hook_point_out
 
         return ll_ablation_hook
 
