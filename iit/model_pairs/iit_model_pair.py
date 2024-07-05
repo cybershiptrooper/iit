@@ -75,8 +75,8 @@ class IITModelPair(BaseModelPair):
 
     def run_eval_step(
         self,
-        base_input,
-        ablation_input,
+        base_input: tuple[t.Tensor, t.Tensor, t.Tensor],
+        ablation_input: tuple[t.Tensor, t.Tensor, t.Tensor],
         loss_fn: Callable[[Tensor, Tensor], Tensor],
     ):
         hl_node = self.sample_hl_name()  # sample a high-level variable to ablate
@@ -91,8 +91,8 @@ class IITModelPair(BaseModelPair):
 
     def run_train_step(
         self,
-        base_input,
-        ablation_input,
+        base_input: tuple[t.Tensor, t.Tensor, t.Tensor],
+        ablation_input: tuple[t.Tensor, t.Tensor, t.Tensor],
         loss_fn: Callable[[Tensor, Tensor], Tensor],
         optimizer: t.optim.Optimizer,
     ):
