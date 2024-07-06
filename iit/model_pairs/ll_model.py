@@ -55,26 +55,31 @@ class LLModel:
 
         def save_hook(tensor: t.Tensor, hook: HookPoint):
             if self.detach_while_caching or (not (tensor.requires_grad and self.model.training)):
-                _tensor = tensor.detach()
+                # detach if the tensor requires grad and the model is not training
+                tensor_to_cache = tensor.detach()
             else:
-                _tensor = tensor.clone()
+                # don't detach if the tensor requires grad and the model is training
+                # retain grad if required for logs or further processing later (not memory efficient though)
+                # Important Note: We are NOT cloning the tensor here. 
+                # Autograd cannot track it back to the original tensor if we do that.
+                # This is because we do not use the 'pointer' tensor_to_cache 
+                # in any computation that autograd can track while resample ablating.
+                tensor_to_cache = tensor
                 tensor.retain_grad()
 
             if remove_batch_dim:
-                cache[hook.name] = _tensor.to(device)[0]
+                cache[hook.name] = tensor_to_cache.to(device)[0]
             else:
-                cache[hook.name] = _tensor.to(device)
+                cache[hook.name] = tensor_to_cache.to(device)
 
         def save_hook_back(tensor, hook):
-            if self.detach_while_caching or (not (tensor.requires_grad and self.model.training)):
-                _tensor = tensor.detach()
-            else:
-                _tensor.retain_grad()
-
+            # we always detach here as loss.backward() was already called 
+            # and will throw an error if we don't do this
+            tensor_to_cache = tensor.detach() 
             if remove_batch_dim:
-                cache[hook.name + "_grad"] = _tensor.to(device)[0]
+                cache[hook.name + "_grad"] = tensor_to_cache.to(device)[0]
             else:
-                cache[hook.name + "_grad"] = _tensor.to(device)
+                cache[hook.name + "_grad"] = tensor_to_cache.to(device)
 
         fwd_hooks = []
         bwd_hooks = []

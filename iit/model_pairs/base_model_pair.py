@@ -156,6 +156,10 @@ class BaseModelPair(ABC):
             raise NotImplementedError
 
         def ll_ablation_hook(hook_point_out: Tensor, hook: HookPoint) -> Tensor:
+            # This works because out is being used in a computation that autograd can track later on
+            # So the clone is still connected to the original tensor's computation graph
+            # For why is a cloned tensor part of the computation graph, 
+            # see here: https://discuss.pytorch.org/t/why-is-the-clone-operation-part-of-the-computation-graph-is-it-even-differentiable/67054/4
             out = hook_point_out.clone()
             index = ll_node.index if ll_node.index is not None else Ix[[None]]
             out[index.as_index] = self.ll_cache[hook.name][index.as_index]

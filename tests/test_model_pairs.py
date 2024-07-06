@@ -40,7 +40,6 @@ def test_model_pair_gradients():
 
     model_pair = CachingModelPair(ll_model=ll_model, hl_model=hl_model, corr=corr)
 
-    # model_pair = CachingModelPair(ll_model, hl_model, corr=corr)
     for n, p in model_pair.ll_model.named_parameters():
         assert p.requires_grad, f'grads not enabled for ll_model at {n}'
     
