@@ -54,11 +54,12 @@ class LLModel:
         self.is_caching = True
 
         def save_hook(tensor: t.Tensor, hook: HookPoint):
-            if self.detach_while_caching:
+            if self.detach_while_caching or (not (tensor.requires_grad and self.model.training)):
                 _tensor = tensor.detach()
             else:
-                _tensor = tensor
+                _tensor = tensor.clone()
                 tensor.retain_grad()
+
             if remove_batch_dim:
                 cache[hook.name] = _tensor.to(device)[0]
             else:
