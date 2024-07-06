@@ -66,7 +66,7 @@ class LLModel:
                 cache[hook.name] = _tensor.to(device)
 
         def save_hook_back(tensor, hook):
-            if self.detach_while_caching:
+            if self.detach_while_caching or (not (tensor.requires_grad and self.model.training)):
                 _tensor = tensor.detach()
             else:
                 _tensor.retain_grad()
