@@ -1,4 +1,3 @@
-from iit.model_pairs.base_model_pair import HookName
 import torch as t
 from transformer_lens.hook_points import HookedRootModule, HookPoint
 from iit.utils.config import DEVICE
@@ -30,7 +29,7 @@ class MNIST_PVR_Leaky_HL(HookedRootModule):
         )
         self.setup()
 
-    def get_idx_to_intermediate(self, name: HookName):
+    def get_idx_to_intermediate(self, name: str):
         if "hook_tl" in name:
             return lambda intermediate_vars: intermediate_vars[:, 0]
         if "hook_tr" in name:

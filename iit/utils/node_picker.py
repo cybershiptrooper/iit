@@ -27,13 +27,13 @@ def get_all_nodes(
     return nodes
 
 
-def get_nodes_in_circuit(hl_ll_corr) -> list[LLNode]:
+def get_nodes_in_circuit(hl_ll_corr: 'Correspondence') -> list[LLNode]:
     nodes_in_circuit = set()
     for hl_node, ll_nodes in hl_ll_corr.items():
         nodes_in_circuit.update(ll_nodes)
     return list(nodes_in_circuit)
 
-def get_all_individual_nodes_in_circuit(ll_model: HookedTransformer, hl_ll_corr: Correspondence) -> list[LLNode]:
+def get_all_individual_nodes_in_circuit(ll_model: HookedTransformer, hl_ll_corr: 'Correspondence') -> list[LLNode]:
     suffixes = hl_ll_corr.get_suffixes()
     all_nodes = get_all_nodes(ll_model, suffixes)
     nodes_in_circuit = get_nodes_in_circuit(hl_ll_corr)
@@ -52,7 +52,7 @@ def nodes_intersect(a: LLNode, b: LLNode) -> bool:
 
 def get_nodes_not_in_circuit(
     ll_model: HookedTransformer,
-    hl_ll_corr: Correspondence
+    hl_ll_corr: 'Correspondence'
 ) -> list[LLNode]:
     suffixes = hl_ll_corr.get_suffixes()
     all_nodes = get_all_nodes(ll_model, suffixes)
@@ -66,7 +66,7 @@ def get_nodes_not_in_circuit(
 
 def get_post_nodes_not_in_circuit(
     ll_model: HookedTransformer,
-    hl_ll_corr: Correspondence,
+    hl_ll_corr: 'Correspondence',
 ) -> list[LLNode]:
     print("WARNING: This doesn't work when switching individual heads on/off.")
     suffixes = hl_ll_corr.get_suffixes()
@@ -102,14 +102,12 @@ def _get_param_idx(
         param_idx = none_ix
     elif param_type in ["W_Q", "W_K", "W_V", "W_O", "b_Q", "b_K", "b_V"]:
         param_idx = node_idx.as_index[-2]
-        if type(param_idx) == slice:
-            param_idx = index.TorchIndex(param_idx)
-        elif type(param_idx) == int:
+        if isinstance(param_idx, slice):
+            param_idx = index.TorchIndex([param_idx])
+        elif isinstance(param_idx, int):
             param_idx = index.TorchIndex([param_idx])
         else:
-            raise NotImplementedError(
-                f"Param of type '{param_type}' is expected to have index {none_ix}, but got {node_idx}"
-            )
+            raise NotImplementedError(f"Index of type {type(param_idx)} ({param_idx}) is not supported for param {name}")
     # elif param_type == "W_O":
     #     idx_tuple = list(node_idx.as_index[:-1])
     #     param_idx = index.TorchIndex([idx_tuple[0], idx_tuple[2], idx_tuple[1]])
@@ -143,7 +141,7 @@ def get_activation_idx(node: LLParamNode) -> index.TorchIndex:
 
 
 def get_params_in_circuit(
-    hl_ll_corr: dict[str, set[LLNode]], ll_model: HookedTransformer
+    hl_ll_corr: 'Correspondence', ll_model: HookedTransformer
 ) -> list[LLParamNode]:
     nodes_in_circuit = get_nodes_in_circuit(hl_ll_corr)
     params_in_circuit = []
@@ -173,7 +171,7 @@ def get_all_params(ll_model: HookedTransformer) -> list[LLParamNode]:
 
 
 def get_params_not_in_circuit(
-    hl_ll_corr: dict[str, set[LLNode]],
+    hl_ll_corr: 'Correspondence',
     ll_model: HookedTransformer,
     filter_out_embed: bool = True,
 ) -> list[LLParamNode]:

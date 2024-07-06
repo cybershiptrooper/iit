@@ -1,7 +1,10 @@
 from typing import Any
-from iit.model_pairs.freeze_model_pair import *
+from iit.model_pairs.freeze_model_pair import FreezedModelPair
+from transformer_lens.hook_points import HookPoint
+from torch import Tensor
+import torch
+from iit.model_pairs.nodes import LLNode
 import iit.utils.node_picker as node_picker
-import iit.utils.index as index
 from transformer_lens import HookedTransformer
 
 
@@ -63,7 +66,7 @@ class StopGradHookedModel:
         def hook_fn(grad: Tensor, hook: HookPoint) -> torch.Tensor:
             act_idx = ll_node.get_index()
             ori_grad_shape = grad.shape
-            grad[act_idx] = t.zeros_like(grad[act_idx])
+            grad[act_idx] = torch.zeros_like(grad[act_idx])
             assert (
                 grad.shape == ori_grad_shape
             ), f"grad.shape is {grad.shape}, expected {ori_grad_shape}"

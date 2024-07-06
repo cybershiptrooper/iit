@@ -1,35 +1,33 @@
 from abc import ABC, abstractmethod
-from typing import Callable
-from typing import final, Any
+from typing import Any, Callable, final
 
-import networkx as nx
 import numpy as np
+import torch as t
 import transformer_lens as tl
-import wandb
 from torch import Tensor
 from tqdm import tqdm
 from transformer_lens.hook_points import HookedRootModule, HookPoint
 
+import wandb
+from iit.model_pairs.ll_model import LLModel
+from iit.model_pairs.nodes import HLNode, LLNode
 from iit.utils.config import WANDB_ENTITY
 from iit.utils.correspondence import Correspondence
 from iit.utils.iit_dataset import IITDataset
-from iit.utils.metric import MetricStoreCollection, MetricType
-from iit.model_pairs.nodes import HLNode, LLNode, HookName
-import torch as t
 from iit.utils.index import Ix
+from iit.utils.metric import MetricStoreCollection, MetricType
 
 
 class BaseModelPair(ABC):
     hl_model: HookedRootModule
-    ll_model: HookedRootModule
+    ll_model: 'LLModel' # see iit/model_pairs/ll_model.py
     hl_cache: tl.ActivationCache
     ll_cache: tl.ActivationCache
-    hl_graph: nx.DiGraph
-    corr: Correspondence  # high -> low correspondence. Capital Pi in paper
+    corr: 'Correspondence' # hl_model -> ll_model activation correspondence. Capital Pi in paper
     training_args: dict[str, Any]
     wandb_method: str
     rng: np.random.Generator
-    dataset_class: type[IITDataset]
+    dataset_class: 'IITDataset'
 
     ##########################################
     # Abstract methods you need to implement #

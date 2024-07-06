@@ -1,6 +1,10 @@
-from .base_model_pair import *
+from typing import Callable
+
+import torch as t
+from torch import Tensor
+
 from iit.model_pairs.iit_model_pair import IITModelPair
-from iit.utils.metric import *
+from iit.utils.metric import MetricStore, MetricStoreCollection, MetricType
 
 
 class IITBehaviorModelPair(IITModelPair):
@@ -16,30 +20,6 @@ class IITBehaviorModelPair(IITModelPair):
         training_args = {**default_training_args, **training_args}
         super().__init__(hl_model, ll_model, corr=corr, training_args=training_args)
         self.wandb_method = "iit_and_behavior"
-    
-    @property
-    def loss_fn(self):
-        # TODO: make this more general
-        def class_loss(output, target):
-            # convert to (N, C, ...) if necessary
-            if len(target.shape) == len(output.shape) and len(output.shape) > 2:
-                # convert target to float if necessary
-                if target.dtype not in [t.float32, t.float64]:
-                    target = target.float()
-                return t.nn.functional.cross_entropy(output.transpose(-1, 1), target.transpose(-1, 1))
-            elif len(output.shape) > 2:
-                return t.nn.functional.cross_entropy(output.transpose(-1, 1), target)
-            assert len(output.shape) == 2 # N, C
-            assert len(target.shape) == 1 or target.shape == output.shape # argmax, or class probabilities
-            return t.nn.functional.cross_entropy(output, target)
-        try:
-            if self.hl_model.is_categorical():
-                return class_loss
-            else:
-                return t.nn.MSELoss()
-        except AttributeError:
-            print("WARNING: using default categorical loss function.")
-            return class_loss
 
     @staticmethod
     def make_train_metrics():

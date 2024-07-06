@@ -1,23 +1,9 @@
-# %%
-from typing import Optional, List, Iterable
-
-# %%
-
-"""copied from https://github.com/ArthurConmy/Automatic-Circuit-Discovery/blob/14c75e9898eda70a8e0997390077af1ec2543258/acdc/TLACDCEdge.py"""
+from typing import Iterable
 
 
 class TorchIndex:
-    """There is not a clean bijection between things we
-    want in the computational graph, and things that are hooked
-    (e.g hook_result covers all heads in a layer)
-
-    `TorchIndex`s are essentially indices that say which part of the tensor is being affected.
-
-    EXAMPLES: Initialise [:, :, 3] with TorchIndex([None, None, 3]) and [:] with TorchIndex([None])
-
-    Also we want to be able to call e.g `my_dictionary[my_torch_index]` hence the hashable tuple stuff
-
-    Note: ideally this would be integrated with transformer_lens.utils.Slice in future; they are accomplishing similar but different things
+    """
+    inspired by https://github.com/ArthurConmy/Automatic-Circuit-Discovery/blob/14c75e9898eda70a8e0997390077af1ec2543258/acdc/TLACDCEdge.py
     """
 
     def __init__(
@@ -25,6 +11,9 @@ class TorchIndex:
         list_of_things_in_tuple: Iterable,
     ):
         # check correct types
+        if isinstance(list_of_things_in_tuple, slice):
+            list_of_things_in_tuple = (list_of_things_in_tuple,)
+            
         for arg in list_of_things_in_tuple:
             if type(arg) in [type(None), int, slice]:
                 continue

@@ -1,6 +1,7 @@
-import pytest
 import torch as t
-from .ioi_hl import *
+from .ioi_hl import DuplicateHead, PreviousHead, SInhibitionHead, NameMoverHead, IOI_HL
+from transformer_lens.hook_points import HookPoint
+import numpy as np
 
 IOI_TEST_NAMES = t.tensor([10, 20, 30])
 

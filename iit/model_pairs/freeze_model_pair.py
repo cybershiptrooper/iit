@@ -1,8 +1,6 @@
-from typing import Any
-from iit.model_pairs.iit_behavior_model_pair import *
+from iit.model_pairs.iit_behavior_model_pair import IITBehaviorModelPair
 import iit.utils.node_picker as node_picker
-import iit.utils.index as index
-from transformer_lens import HookedTransformer
+import torch as t
 
 
 class FreezedModelPair(IITBehaviorModelPair):

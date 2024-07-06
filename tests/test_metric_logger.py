@@ -1,6 +1,6 @@
-from iit.utils.metric import *
-from iit.model_pairs import IITModelPair
-from iit.model_pairs import IOI_ModelPair
+from iit.utils.metric import MetricStore, MetricStoreCollection, MetricType
+from iit.model_pairs.iit_model_pair import IITModelPair
+from iit.model_pairs.ioi_model_pair import IOI_ModelPair
 
 
 def test_metric_collection():
@@ -37,7 +37,7 @@ def test_early_stop():
             MetricStore("new_acc", MetricType.ACCURACY),
         ]
     )
-    mc.update({"acc": 0.991, "loss": 0.1, "new_acc": 0.991})
+    mc.update({"acc": 100, "loss": 0.1, "new_acc": 100})
     es_condition = IITModelPair._check_early_stop_condition(mc.metrics)
     assert es_condition == True
 
@@ -62,8 +62,9 @@ def test_IOI_early_stop():
         1.0, # 15
     ]
 
-    IIA = 100
-    accuracy = 60
+    IIA = 1
+    accuracy = 0.6
+    strict_accuracy = 1
 
     mc = IOI_ModelPair.make_test_metrics()
     mc.update(
@@ -71,6 +72,7 @@ def test_IOI_early_stop():
             "val/iit_loss": 0.2,
             "val/IIA": IIA,
             "val/accuracy": accuracy,
+            "val/strict_accuracy": strict_accuracy,
             "val/per_token_accuracy": per_token_accuracy,
         }
     )
@@ -79,6 +81,20 @@ def test_IOI_early_stop():
 
     assert es_condition == False
 
+    IIA = 1
+    accuracy = 0.6
+    strict_accuracy = 1
+    
+    mc = IOI_ModelPair.make_test_metrics()
+    mc.update(
+        {
+            "val/iit_loss": 0.2,
+            "val/IIA": IIA,
+            "val/accuracy": accuracy,
+            "val/strict_accuracy": strict_accuracy,
+            "val/per_token_accuracy": per_token_accuracy,
+        }
+    )
     es_condition = IOI_ModelPair._check_early_stop_fn(mc.metrics, non_ioi_thresh=0.5)
 
     assert es_condition == True

@@ -20,7 +20,7 @@ class MetricStore:
 
     def get_value(self):
         if len(self._store) == 0:
-            raise ValueError("No values in metric store!")
+            return None
         if self.type == MetricType.ACCURACY:
             return np.mean(self._store) * 100
         else:
@@ -30,12 +30,17 @@ class MetricStore:
         return self._name
 
     def __str__(self) -> str:
+        if self.get_value() is None:
+            return f"{self._name}: None"
         if self.type == MetricType.ACCURACY:
             return f"{self._name}: {float(self.get_value()):.2f}%"
         return f"{self._name}: {self.get_value():.4f}"
 
     def __len__(self):
         return len(self._store)
+    
+    def __repr__(self) -> str:
+        return self.__str__()
 
 
 class PerTokenMetricStore(MetricStore):
@@ -48,7 +53,7 @@ class PerTokenMetricStore(MetricStore):
 
     def get_value(self):
         if len(self._store) == 0:
-            raise ValueError("No values in metric store!")
+            return None
         return np.mean(self._store, axis=0)
 
     def __str__(self) -> str:
@@ -68,10 +73,10 @@ class MetricStoreCollection:
                     key_found = True
                     break
             assert key_found, f"Key {k} not found in metric stores!"
-        l = [len(self.metrics[i]) for i in range(len(self.metrics))]
+        lengths = [len(self.metrics[i]) for i in range(len(self.metrics))]
         assert (
-            np.unique(l).shape[0] == 1
-        ), f"All metric stores should have the same length after update!, got lengths: {l}"
+            np.unique(lengths).shape[0] == 1
+        ), f"All metric stores should have the same length after update!, got lengths: {lengths}"
 
     def create_metric_store(self, name, metric_type: MetricType):
         assert [
@@ -83,6 +88,9 @@ class MetricStoreCollection:
 
     def __str__(self) -> str:
         return "\n".join([str(metric) for metric in self.metrics])
+    
+    def __repr__(self) -> str:
+        return self.__str__()
 
     def to_dict(self):
         return {metric.get_name(): metric.get_value() for metric in self.metrics}

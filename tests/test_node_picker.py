@@ -1,7 +1,9 @@
-from iit.utils.node_picker import *
-from iit.model_pairs.base_model_pair import LLNode, HLNode
+from iit.utils.node_picker import get_all_nodes, get_params_in_circuit
+from transformer_lens import HookedTransformer
+from iit.model_pairs.nodes import LLNode
 from iit.utils.index import Ix
 import iit.utils.index as index
+from iit.utils.correspondence import Correspondence
 
 def test_get_all_nodes():
     cfg = {
@@ -29,17 +31,6 @@ def test_get_all_nodes():
     ]
 
 def test_get_params_in_circuit():
-    hl_model_cfg = {
-        'n_layers': 2,
-        'd_model': 13,
-        'n_ctx': 5,
-        'd_head': 6,
-        'n_heads': 1,
-        'd_mlp': 1,
-        'act_fn': 'relu',
-        'd_vocab': 6,
-    }
-
     ll_cfg = {
         "n_layers": 2,
         "n_heads": 4,
@@ -51,7 +42,6 @@ def test_get_params_in_circuit():
         'n_ctx': 5,
     }
 
-    hl_model = HookedTransformer(hl_model_cfg)
     ll_model = HookedTransformer(ll_cfg)
 
     hl_ll_corr = {
@@ -62,21 +52,34 @@ def test_get_params_in_circuit():
             LLNode(name='blocks.1.attn.hook_result', index=index.Ix[:, :, :2, :], subspace=None)
             }
         }
-    
-    assert get_params_in_circuit(hl_ll_corr, ll_model) == [
+    def lists_match(a, b):
+        # check if two lists of LLNodes are equal, they may be in different order
+        if len(a) != len(b):
+            return False
+        for node in a:
+            if node not in b:
+                return False
+        for node in b:
+            if node not in a:
+                return False
+        return True
+
+    to_match_list = [
         LLNode(name='blocks.0.mlp.W_in', index=Ix[[None]], subspace=None),
         LLNode(name='blocks.0.mlp.b_in', index=Ix[[None]], subspace=None),
         LLNode(name='blocks.0.mlp.W_out', index=Ix[[None]], subspace=None),
         LLNode(name='blocks.0.mlp.b_out', index=Ix[[None]], subspace=None),
-        LLNode(name='blocks.1.attn.W_Q', index=Ix[:, :, :2], subspace=None),
-        LLNode(name='blocks.1.attn.W_K', index=Ix[:, :, :2], subspace=None),
-        LLNode(name='blocks.1.attn.W_V', index=Ix[:, :, :2], subspace=None),
-        LLNode(name='blocks.1.attn.W_O', index=Ix[:, :2, :], subspace=None),
-        LLNode(name='blocks.1.attn.b_Q', index=Ix[:, :2], subspace=None),
-        LLNode(name='blocks.1.attn.b_K', index=Ix[:, :2], subspace=None),
-        LLNode(name='blocks.1.attn.b_V', index=Ix[:, :2], subspace=None),
+        LLNode(name='blocks.1.attn.W_Q', index=Ix[:2], subspace=None),
+        LLNode(name='blocks.1.attn.W_K', index=Ix[:2], subspace=None),
+        LLNode(name='blocks.1.attn.W_V', index=Ix[:2], subspace=None),
+        LLNode(name='blocks.1.attn.W_O', index=Ix[:2], subspace=None),
+        LLNode(name='blocks.1.attn.b_Q', index=Ix[:2], subspace=None),
+        LLNode(name='blocks.1.attn.b_K', index=Ix[:2], subspace=None),
+        LLNode(name='blocks.1.attn.b_V', index=Ix[:2], subspace=None),
         LLNode(name='blocks.1.attn.b_O', index=Ix[[None]], subspace=None)
     ]
+
+    assert lists_match(get_params_in_circuit(hl_ll_corr, ll_model), to_match_list)
 
     hl_ll_corr = {
         "blocks.0.mlp.hook_post": {
@@ -87,7 +90,7 @@ def test_get_params_in_circuit():
             }
         }
     
-    assert get_params_in_circuit(hl_ll_corr, ll_model) == [
+    to_match_list = [
         LLNode(name='blocks.0.mlp.W_in', index=Ix[[None]], subspace=None),
         LLNode(name='blocks.0.mlp.b_in', index=Ix[[None]], subspace=None),
         LLNode(name='blocks.0.mlp.W_out', index=Ix[[None]], subspace=None),
@@ -102,34 +105,32 @@ def test_get_params_in_circuit():
         LLNode(name='blocks.1.attn.b_O', index=Ix[[None]], subspace=None)
     ]
 
+    assert lists_match(get_params_in_circuit(hl_ll_corr, ll_model), to_match_list)
+
 def test_suffix_maker():
     n_layers = 6
-    all_attns = [f"blocks.{i}.hook_attn_out" for i in range(n_layers)]
-    all_mlps = [f"blocks.{i}.mlp.hook_post" for i in range(n_layers)]
+    all_attns = [LLNode(f"blocks.{i}.hook_attn_out", index=None) for i in range(n_layers)]
+    all_mlps = [LLNode(f"blocks.{i}.mlp.hook_post", index=None) for i in range(n_layers)]
 
     corr_dict = {
         "all_nodes_hook": [*all_mlps[:2], *all_attns[:4]]
     }
-    make_corr_from_dict = lambda d: {
-        HLNode(k, -1): {LLNode(name=name, index=None) for name in v}
-        for k, v in d.items()
-    }
-    corr = make_corr_from_dict(corr_dict)
-    hook_suffixes = get_hook_suffix(corr)
+
+    hook_suffixes = Correspondence.get_hook_suffix(corr_dict)
     assert hook_suffixes == {
         "attn": "hook_attn_out",
         "mlp": "mlp.hook_post"
     }
 
-    all_attns = [f"blocks.{i}.attn.hook_result" for i in range(n_layers)]
-    all_mlps = [f"blocks.{i}.mlp.hook_post" for i in range(n_layers)]
+    all_attns = [LLNode(f"blocks.{i}.attn.hook_result", index=None) for i in range(n_layers)]
+    all_mlps = [LLNode(f"blocks.{i}.mlp.hook_post", index=None) for i in range(n_layers)]
 
     corr_dict = {
         "all_nodes_hook": [all_mlps[3], all_attns[0]]
     }
 
-    corr = make_corr_from_dict(corr_dict)
-    hook_suffixes = get_hook_suffix(corr)
+    corr = Correspondence.make_corr_from_dict(corr_dict, make_suffixes_from_corr=True)
+    hook_suffixes = corr.get_suffixes()
     assert hook_suffixes == {
         "attn": "attn.hook_result",
         "mlp": "mlp.hook_post"

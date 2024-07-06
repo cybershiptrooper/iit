@@ -104,10 +104,12 @@ class IOI_HL(HookedRootModule, HLModel):
     
     def forward(self, args, verbose=False):
         show = print if verbose else lambda *args, **kwargs: None
-        if args is tuple:
+        if isinstance(args, t.Tensor):
+            input = args
+        elif isinstance(args, tuple):
             input = args[0]
         else:
-            input = args
+            raise ValueError(f"Expected a tensor or tuple, got {type(args)}")
         batched = True
         if len(input.shape) == 1:
             batched = False

@@ -25,7 +25,7 @@ class Correspondence(dict[HLNode, set[LLNode]]):
                 f"__value is not a set, but {type(value)}"
             )
             assert all(isinstance(v, LLNode) for v in value), ValueError(
-                f"__value contains non-LLNode elements"
+                "__value contains non-LLNode elements"
             )
         # print(self.keys(), self.values())
         super().__setattr__(key, value)
@@ -60,7 +60,7 @@ class Correspondence(dict[HLNode, set[LLNode]]):
 
 
     @classmethod
-    def make_corr_from_dict(cls, d, suffixes=None, make_suffixes_from_corr=False):
+    def make_corr_from_dict(cls, d: dict, suffixes=None, make_suffixes_from_corr=False):
         if make_suffixes_from_corr:
             suffixes = Correspondence.get_hook_suffix(d)
         return cls(

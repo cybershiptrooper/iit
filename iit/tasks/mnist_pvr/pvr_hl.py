@@ -1,4 +1,4 @@
-from iit.model_pairs.base_model_pair import HookName
+from iit.model_pairs.nodes import HookName
 import torch as t
 from transformer_lens.hook_points import HookedRootModule, HookPoint
 from iit.utils.config import DEVICE
