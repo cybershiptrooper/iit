@@ -2,6 +2,7 @@ import torch as t
 from transformer_lens import HookedTransformer
 from typing import Optional, Tuple
 from transformer_lens.hook_points import NamesFilter, HookPoint, HookedRootModule
+from transformer_lens.ActivationCache import ActivationCache
 
 
 class LLModel:
@@ -147,7 +148,9 @@ class LLModel:
             model_out = self.model(*model_args, **model_kwargs)
             if incl_bwd:
                 model_out.backward()
-
+        cache_dict = ActivationCache(
+                cache_dict, self, has_batch_dim=not remove_batch_dim
+        )
         return model_out, cache_dict
     
     def __getattr__(self, name):
