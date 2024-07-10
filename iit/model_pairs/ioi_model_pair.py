@@ -1,6 +1,7 @@
 from iit.model_pairs.strict_iit_model_pair import StrictIITModelPair
 from iit.utils.config import DEVICE
-from iit.utils.metric import *
+from iit.utils.metric import MetricStore, MetricType, MetricStoreCollection, PerTokenMetricStore
+import numpy as np
 from typing import Callable
 from torch import Tensor
 import torch as t
@@ -155,7 +156,7 @@ class IOI_ModelPair(StrictIITModelPair):
         """
         Early stopping for IOI
         """
-        print_if_verbose = lambda x: print(x) if verbose else None
+        print_if_verbose = lambda x: print(x) if verbose else None  # noqa: E731
         for metric in test_metrics:
             if metric.get_name() == "val/IIA" and metric.get_value() < 100:
                 print_if_verbose(f"IIA is not enough: {metric.get_value()}")

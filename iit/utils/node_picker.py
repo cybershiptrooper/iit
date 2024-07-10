@@ -108,12 +108,6 @@ def _get_param_idx(
             param_idx = index.TorchIndex([param_idx])
         else:
             raise NotImplementedError(f"Index of type {type(param_idx)} ({param_idx}) is not supported for param {name}")
-    # elif param_type == "W_O":
-    #     idx_tuple = list(node_idx.as_index[:-1])
-    #     param_idx = index.TorchIndex([idx_tuple[0], idx_tuple[2], idx_tuple[1]])
-    # elif param_type in ["b_Q", "b_K", "b_V"]:
-    #     idx_tuple = list(node_idx.as_index[:-1])
-    #     param_idx = index.TorchIndex([slice(None), idx_tuple[2]])
     else:
         raise NotImplementedError(
             f"Param of type '{param_type}' is expected to have index {none_ix}, but got {node_idx}"
@@ -184,3 +178,11 @@ def get_params_not_in_circuit(
         if not any(nodes_intersect(param, c) for c in nodes_in_circuit):
             params_not_in_circuit.append(param)
     return params_not_in_circuit
+
+def find_ll_node_by_name(name, list_of_nodes: list[LLNode]):
+    ll_nodes = []
+    for node in list_of_nodes:
+        if node.name == name:
+            ll_nodes.append(node)
+    return ll_nodes
+

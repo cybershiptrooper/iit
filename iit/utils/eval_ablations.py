@@ -299,7 +299,7 @@ def ablate_nodes(
 
     if model_pair.hl_model.is_categorical():
         # TODO: add other metrics here
-        base_hl_out = model_pair.hl_model(base_input).squeeze()
+        base_hl_out = model_pair.hl_model(base_x).squeeze()
         base_ll_out = model_pair.ll_model(base_x).squeeze()
         label_idx = model_pair.get_label_idxs()
         ll_out = t.argmax(ll_out, dim=-1)[label_idx.as_index]
@@ -402,9 +402,8 @@ def check_causal_effect_on_ablation(
 
     loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
     for batch in tqdm(loader):
-        base_input = batch[0]
         for node, hooker in hookers.items():
-            results[node] += ablate_nodes(model_pair, base_input, [(node.name, hooker)])
+            results[node] += ablate_nodes(model_pair, batch, [(node.name, hooker)])
 
     for node, result in results.items():
         results[node] = result / len(loader)
