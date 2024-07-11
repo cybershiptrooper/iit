@@ -125,7 +125,12 @@ class StrictIITModelPair(IITBehaviorModelPair):
             else:
                 accuracy = ((ll_output - base_y).abs() < self.training_args["atol"]).float().mean().item()
             accuracies.append(accuracy)
-        accuracy = np.mean(accuracies)
+
+        if len(accuracies) > 0:
+            accuracy = np.mean(accuracies)
+        else:
+            accuracy = 1.0
+
         eval_returns["val/strict_accuracy"] = accuracy
         return eval_returns
 
