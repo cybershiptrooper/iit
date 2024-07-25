@@ -1,37 +1,45 @@
-from iit.model_pairs.iit_model_pair import *
+from typing import Callable
+
+import wandb
+import numpy as np
+import torch as t
+from torch import Tensor
+from tqdm import tqdm
+from transformer_lens.hook_points import HookedRootModule
+
+from iit.model_pairs.iit_model_pair import IITModelPair
+from iit.utils.nodes import HLNode, LLNode
+from iit.utils.config import WANDB_ENTITY
 from iit.utils.probes import construct_probes
+from iit.utils.correspondence import Correspondence
+from iit.utils.iit_dataset import IITDataset
+from iit.model_pairs.ll_model import LLModel
 
 
 class IITProbeSequentialPair(IITModelPair):
     def __init__(
         self,
-        hl_model: HookedRootModule = None,
-        ll_model: HookedRootModule = None,
-        hl_graph=None,
-        corr: dict[HLNode, set[LLNode]] = {},
-        seed=0,
-        training_args={},
+        hl_model: HookedRootModule,
+        ll_model: HookedRootModule | LLModel,
+        corr: Correspondence,
+        training_args: dict = {},
     ):
-        super().__init__(hl_model, ll_model, hl_graph, corr, seed, training_args)
         default_training_args = {
-            "batch_size": 256,
-            "lr": 0.001,
-            "num_workers": 0,
             "probe_weight": 1.0,
         }
         training_args = {**default_training_args, **training_args}
-        self.training_args = training_args
+        super().__init__(hl_model, ll_model, corr, training_args)
 
     def run_train_step(
         self,
-        base_input,
-        ablation_input,
-        loss_fn,
-        optimizer,
-        probes,
-        probe_optimizer,
-        training_args,
-    ):
+        base_input: tuple[Tensor, Tensor, Tensor],
+        ablation_input: tuple[Tensor, Tensor, Tensor],
+        loss_fn: Callable[[Tensor, Tensor], Tensor],
+        optimizer: t.optim.Optimizer,
+        probes: dict,
+        probe_optimizer: t.optim.Optimizer,
+        training_args: dict,
+    ) -> dict:
         ablation_loss = super().run_train_step(
             base_input, ablation_input, loss_fn, optimizer
         )["iit_loss"]
@@ -74,11 +82,11 @@ class IITProbeSequentialPair(IITModelPair):
 
     def train(
         self,
-        dataset,
-        test_dataset,
-        epochs=1000,
-        use_wandb=False,
-    ):
+        dataset: IITDataset,
+        test_dataset: IITDataset,
+        epochs: int = 1000,
+        use_wandb: bool = False,
+    ) -> None:
         training_args = self.training_args
         print(f"{training_args=}")
 

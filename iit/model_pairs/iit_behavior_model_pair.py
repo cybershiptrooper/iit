@@ -2,13 +2,22 @@ from typing import Callable
 
 import torch as t
 from torch import Tensor
+from transformer_lens.hook_points import HookedRootModule
 
 from iit.model_pairs.iit_model_pair import IITModelPair
+from iit.model_pairs.ll_model import LLModel
+from iit.utils.correspondence import Correspondence
 from iit.utils.metric import MetricStore, MetricStoreCollection, MetricType
 
 
 class IITBehaviorModelPair(IITModelPair):
-    def __init__(self, hl_model, ll_model, corr, training_args={}):
+    def __init__(
+            self,
+            hl_model: HookedRootModule, 
+            ll_model: LLModel, 
+            corr: Correspondence, 
+            training_args: dict = {}
+            ):
         default_training_args = {
             "lr": 0.001,
             "atol": 5e-2,
@@ -22,7 +31,7 @@ class IITBehaviorModelPair(IITModelPair):
         self.wandb_method = "iit_and_behavior"
 
     @staticmethod
-    def make_train_metrics():
+    def make_train_metrics() -> MetricStoreCollection:
         return MetricStoreCollection(
             [
                 MetricStore("train/iit_loss", MetricType.LOSS),
@@ -31,7 +40,7 @@ class IITBehaviorModelPair(IITModelPair):
         )
 
     @staticmethod
-    def make_test_metrics():
+    def make_test_metrics() -> MetricStoreCollection:
         return MetricStoreCollection(
             [
                 MetricStore("val/iit_loss", MetricType.LOSS),
@@ -40,13 +49,17 @@ class IITBehaviorModelPair(IITModelPair):
             ]
         )
 
-    def get_behaviour_loss_over_batch(self, base_input, loss_fn):
+    def get_behaviour_loss_over_batch(
+            self, 
+            base_input: tuple[Tensor, Tensor, Tensor], 
+            loss_fn: Callable[[Tensor, Tensor], Tensor]
+            ) -> Tensor:
         base_x, base_y = base_input[0:2]
         output = self.ll_model(base_x)
         behavior_loss = loss_fn(output, base_y)
         return behavior_loss
 
-    def step_on_loss(self, loss, optimizer):
+    def step_on_loss(self, loss: Tensor, optimizer: t.optim.Optimizer) -> None:
         optimizer.zero_grad()
         loss.backward()
         self.clip_grad_fn()
@@ -54,11 +67,11 @@ class IITBehaviorModelPair(IITModelPair):
 
     def run_train_step(
         self,
-        base_input,
-        ablation_input,
+        base_input: tuple[Tensor, Tensor, Tensor],
+        ablation_input: tuple[Tensor, Tensor, Tensor],
         loss_fn: Callable[[Tensor, Tensor], Tensor],
         optimizer: t.optim.Optimizer,
-    ):
+    ) -> dict:
         use_single_loss = self.training_args["use_single_loss"]
 
         iit_loss = 0
@@ -90,10 +103,10 @@ class IITBehaviorModelPair(IITModelPair):
 
     def run_eval_step(
         self,
-        base_input,
-        ablation_input,
+        base_input: tuple[Tensor, Tensor, Tensor],
+        ablation_input: tuple[Tensor, Tensor, Tensor],
         loss_fn: Callable[[Tensor, Tensor], Tensor],
-    ):
+    ) -> dict:
         atol = self.training_args["atol"]
 
         # compute IIT loss and accuracy
@@ -134,7 +147,7 @@ class IITBehaviorModelPair(IITModelPair):
         }
     
 
-    def _check_early_stop_condition(self, test_metrics: list[MetricStore]):
+    def _check_early_stop_condition(self, test_metrics: list[MetricStore]) -> bool:
         if self.training_args["iit_weight"] == 0:
             for metric in test_metrics:
                 if metric.get_name() == "val/accuracy":

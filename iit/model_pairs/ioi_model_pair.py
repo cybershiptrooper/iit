@@ -1,16 +1,27 @@
+from typing import Callable
+
+import numpy as np
+import torch as t
+from torch import Tensor
+from transformer_lens.hook_points import HookedRootModule
+
 from iit.model_pairs.strict_iit_model_pair import StrictIITModelPair
+from iit.model_pairs.ll_model import LLModel
+from iit.utils.correspondence import Correspondence
 from iit.utils.config import DEVICE
 from iit.utils.metric import MetricStore, MetricType, MetricStoreCollection, PerTokenMetricStore
-import numpy as np
-from typing import Callable
-from torch import Tensor
-import torch as t
 from iit.utils.nodes import HLNode
 import iit.utils.index as index
 
 
 class IOI_ModelPair(StrictIITModelPair):
-    def __init__(self, hl_model, ll_model, corr, training_args={}):
+    def __init__(
+            self, 
+            hl_model: HookedRootModule, 
+            ll_model: LLModel, 
+            corr: Correspondence, 
+            training_args: dict = {}
+            ):
         super().__init__(hl_model, ll_model, corr, training_args=training_args)
         default_training_args = {
             "next_token": False,
@@ -21,7 +32,7 @@ class IOI_ModelPair(StrictIITModelPair):
         self.next_token = self.training_args["next_token"]
 
     @property
-    def loss_fn(self):
+    def loss_fn(self) -> Callable[[Tensor, Tensor], Tensor]:
         if hasattr(self, "__loss_fn"):
             return self.__loss_fn
 
@@ -46,11 +57,11 @@ class IOI_ModelPair(StrictIITModelPair):
         return self.__loss_fn
 
     @staticmethod
-    def get_label_idxs():
+    def get_label_idxs() -> index.Index:
         return index.Ix[:, -1]
 
     @staticmethod
-    def make_test_metrics():
+    def make_test_metrics() -> MetricStoreCollection:
         return MetricStoreCollection(
             [
                 MetricStore("val/iit_loss", MetricType.LOSS),
@@ -63,11 +74,11 @@ class IOI_ModelPair(StrictIITModelPair):
 
     def get_IIT_loss_over_batch(
         self,
-        base_input: tuple[t.Tensor, t.Tensor, t.Tensor],
-        ablation_input: tuple[t.Tensor, t.Tensor, t.Tensor],
+        base_input: tuple[Tensor, Tensor, Tensor],
+        ablation_input: tuple[Tensor, Tensor, Tensor],
         hl_node: HLNode,
         loss_fn: Callable[[Tensor, Tensor], Tensor],
-    ):
+    ) -> Tensor:
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
         # hl_output = t.nn.functional.softmax(hl_output, dim=-1)
         hl_argmax = t.argmax(hl_output[:, -1, :], dim=-1)
@@ -77,10 +88,10 @@ class IOI_ModelPair(StrictIITModelPair):
 
     def run_eval_step(
         self,
-        base_input,
-        ablation_input,
+        base_input: tuple[Tensor, Tensor, Tensor],
+        ablation_input: tuple[Tensor, Tensor, Tensor],
         loss_fn: Callable[[Tensor, Tensor], Tensor],
-    ):
+    ) -> dict:
         # compute IIT loss and accuracy on last token position only
         hl_node = self.sample_hl_name()
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
@@ -149,10 +160,10 @@ class IOI_ModelPair(StrictIITModelPair):
     @staticmethod
     def _check_early_stop_fn(
         test_metrics: list[MetricStore],
-        verbose=False,
-        non_ioi_thresh=0.65,
-        use_per_token_check=False,
-    ):
+        verbose: bool = False,
+        non_ioi_thresh: float = 0.65,
+        use_per_token_check: bool = False,
+    ) -> bool:
         """
         Early stopping for IOI
         """
@@ -198,7 +209,7 @@ class IOI_ModelPair(StrictIITModelPair):
         self,
         *args,
         **kwargs,
-    ):
+    ) -> bool:
         if not self.training_args["next_token"]:
             return super()._check_early_stop_condition(*args, **kwargs)
         return self._check_early_stop_fn(

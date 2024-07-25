@@ -5,6 +5,7 @@ import numpy as np
 import torch as t
 import transformer_lens as tl
 from torch import Tensor
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformer_lens.hook_points import HookedRootModule, HookPoint
 
@@ -14,7 +15,7 @@ from iit.utils.nodes import HLNode, LLNode
 from iit.utils.config import WANDB_ENTITY
 from iit.utils.correspondence import Correspondence
 from iit.utils.iit_dataset import IITDataset
-from iit.utils.index import Ix
+from iit.utils.index import Ix, Index
 from iit.utils.metric import MetricStoreCollection, MetricType
 
 
@@ -50,18 +51,18 @@ class BaseModelPair(ABC):
     @abstractmethod
     def run_train_step(
         self,
-        base_input,
-        ablation_input,
-        loss_fn,
-        optimizer,
+        base_input: tuple[Tensor, Tensor, Tensor],
+        ablation_input: tuple[Tensor, Tensor, Tensor],
+        loss_fn: Callable[[Tensor, Tensor], Tensor],
+        optimizer: t.optim.Optimizer,
     ) -> MetricStoreCollection:
         pass
 
     @abstractmethod
     def run_eval_step(
         self,
-        base_input,
-        ablation_input,
+        base_input: tuple[Tensor, Tensor, Tensor],
+        ablation_input: tuple[Tensor, Tensor, Tensor],
         loss_fn: Callable[[Tensor, Tensor], Tensor],
     ) -> MetricStoreCollection:
         pass
@@ -71,8 +72,8 @@ class BaseModelPair(ABC):
     ###########################################
     def do_intervention(
         self,
-        base_input: tuple[t.Tensor, t.Tensor, t.Tensor],
-        ablation_input: tuple[t.Tensor, t.Tensor, t.Tensor],
+        base_input: tuple[Tensor, Tensor, Tensor],
+        ablation_input: tuple[Tensor, Tensor, Tensor],
         hl_node: HLNode,
         verbose=False
     ) -> tuple[Tensor, Tensor]:
@@ -102,23 +103,20 @@ class BaseModelPair(ABC):
         return hl_output, ll_output
 
     @staticmethod
-    def get_label_idxs():
+    def get_label_idxs() -> Index:
         '''
         Returns the index of the label for which the IIT loss is computed. 
         NOT to be used for computing the behavior loss.
         '''
         return Ix[[None]]
 
-    def make_hl_model(self, hl_graph):
-        raise NotImplementedError
-
-    def set_corr(self, corr):
+    def set_corr(self, corr: Correspondence) -> None:
         self.corr = corr
 
     def sample_hl_name(self) -> HLNode:
         return self.rng.choice(list(self.corr.keys()))
 
-    def make_hl_ablation_hook(self, hl_node: HLNode):
+    def make_hl_ablation_hook(self, hl_node: HLNode) -> Callable[[Tensor, HookPoint], Tensor]:
         assert isinstance(hl_node, HLNode), ValueError(
             f"hl_node is not an instance of HLNode, but {type(hl_node)}"
         )
@@ -143,7 +141,9 @@ class BaseModelPair(ABC):
             return self.hl_ablation_hook
 
     def hl_ablation_hook(
-        self, hook_point_out: Tensor, hook: HookPoint
+        self, 
+        hook_point_out: Tensor, 
+        hook: HookPoint
     ) -> Tensor:  # TODO: remove this
         out = self.hl_cache[hook.name]
         return out
@@ -169,24 +169,28 @@ class BaseModelPair(ABC):
 
     def get_IIT_loss_over_batch(
         self,
-        base_input,
-        ablation_input,
+        base_input: tuple[Tensor, Tensor, Tensor],
+        ablation_input: tuple[Tensor, Tensor, Tensor],
         hl_node: HLNode,
         loss_fn: Callable[[Tensor, Tensor], Tensor],
-    ):
+    ) -> Tensor:
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
         label_idx = self.get_label_idxs()
         # IIT loss is only computed on the tokens we care about
         loss = loss_fn(ll_output[label_idx.as_index], hl_output[label_idx.as_index])
         return loss
 
-    def clip_grad_fn(self):
+    def clip_grad_fn(self) -> None:
         if self.training_args["clip_grad_norm"]:
             t.nn.utils.clip_grad_norm_(
                 self.ll_model.parameters(), self.training_args["clip_grad_norm"]
             )
 
-    def step_scheduler(self, lr_scheduler, test_metrics):
+    def step_scheduler(
+            self, 
+            lr_scheduler: t.optim.lr_scheduler.LRScheduler, 
+            test_metrics: MetricStoreCollection
+            ) -> None:
         if isinstance(lr_scheduler, t.optim.lr_scheduler.ReduceLROnPlateau):
             accuracy_metric = 0
             for metric in self.training_args.get("scheduler_val_metric", ["val/accuracy"]):
@@ -212,12 +216,12 @@ class BaseModelPair(ABC):
 
     def train(
         self,
-        train_set,
-        test_set,
-        epochs=1000,
-        use_wandb=False,
-        wandb_name_suffix="",
-    ):
+        train_set: IITDataset,
+        test_set: IITDataset,
+        epochs: int = 1000,
+        use_wandb: bool = False,
+        wandb_name_suffix: str = "",
+    ) -> None:
         training_args = self.training_args
         print(f"{training_args=}")
 
@@ -279,15 +283,20 @@ class BaseModelPair(ABC):
     def make_loaders(
         dataset: IITDataset,
         test_dataset: IITDataset,
-        batch_size,
-        num_workers,
+        batch_size : int,
+        num_workers : int,
     ):
         loader = dataset.make_loader(batch_size, num_workers)
         test_loader = test_dataset.make_loader(batch_size, num_workers)
         return loader, test_loader
 
     @final
-    def _run_train_epoch(self, loader, loss_fn, optimizer) -> MetricStoreCollection:
+    def _run_train_epoch(
+        self, 
+        loader: DataLoader, 
+        loss_fn: Callable[[Tensor, Tensor], Tensor],
+        optimizer: t.optim.Optimizer
+        ) -> MetricStoreCollection:
         self.ll_model.train()
         train_metrics = self.make_train_metrics()
         for i, (base_input, ablation_input) in tqdm(
@@ -299,7 +308,11 @@ class BaseModelPair(ABC):
         return train_metrics
 
     @final
-    def _run_eval_epoch(self, loader, loss_fn) -> MetricStoreCollection:
+    def _run_eval_epoch(
+        self, 
+        loader: DataLoader, 
+        loss_fn: Callable[[Tensor, Tensor], Tensor]
+        ) -> MetricStoreCollection:
         self.ll_model.eval()
         test_metrics = self.make_test_metrics()
         with t.no_grad():
@@ -310,7 +323,7 @@ class BaseModelPair(ABC):
         return test_metrics
 
     @staticmethod
-    def _check_early_stop_condition(test_metrics):
+    def _check_early_stop_condition(test_metrics: MetricStoreCollection) -> bool:
         """
         Returns True if all types of accuracy metrics reach 100%
         """
@@ -326,7 +339,11 @@ class BaseModelPair(ABC):
 
     @final
     @staticmethod
-    def _print_and_log_metrics(epoch, metrics, use_wandb=False):
+    def _print_and_log_metrics(
+        epoch: int, 
+        metrics: MetricStoreCollection, 
+        use_wandb: bool = False
+        ) -> None:
         print(f"\nEpoch {epoch}:", end=" ")
         if use_wandb:
             wandb.log({"epoch": epoch})

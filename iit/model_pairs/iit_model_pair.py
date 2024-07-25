@@ -17,8 +17,8 @@ class IITModelPair(BaseModelPair):
         self,
         hl_model: HookedRootModule,
         ll_model: HookedRootModule | LLModel,
-        corr: "Correspondence",
-        training_args={},
+        corr: Correspondence,
+        training_args: dict = {},
     ):
         self.hl_model = hl_model
         self.hl_model.requires_grad_(False)
@@ -50,7 +50,7 @@ class IITModelPair(BaseModelPair):
         self.wandb_method = "iit"
 
     @property
-    def loss_fn(self):
+    def loss_fn(self) -> Tensor:
         # TODO: make this more general
         def class_loss(output, target):
             # convert to (N, C, ...) if necessary
@@ -79,7 +79,7 @@ class IITModelPair(BaseModelPair):
             return class_loss
 
     @staticmethod
-    def make_train_metrics():
+    def make_train_metrics() -> MetricStoreCollection:
         return MetricStoreCollection(
             [
                 MetricStore("train/iit_loss", MetricType.LOSS),
@@ -87,7 +87,7 @@ class IITModelPair(BaseModelPair):
         )
 
     @staticmethod
-    def make_test_metrics():
+    def make_test_metrics() -> MetricStoreCollection:
         return MetricStoreCollection(
             [
                 MetricStore("val/iit_loss", MetricType.LOSS),
@@ -97,10 +97,10 @@ class IITModelPair(BaseModelPair):
 
     def run_eval_step(
         self,
-        base_input: tuple[t.Tensor, t.Tensor, t.Tensor],
-        ablation_input: tuple[t.Tensor, t.Tensor, t.Tensor],
+        base_input: tuple[Tensor, Tensor, Tensor],
+        ablation_input: tuple[Tensor, Tensor, Tensor],
         loss_fn: Callable[[Tensor, Tensor], Tensor],
-    ):
+    ) -> dict:
         hl_node = self.sample_hl_name()  # sample a high-level variable to ablate
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
         loss = loss_fn(ll_output, hl_output)
@@ -113,11 +113,11 @@ class IITModelPair(BaseModelPair):
 
     def run_train_step(
         self,
-        base_input: tuple[t.Tensor, t.Tensor, t.Tensor],
-        ablation_input: tuple[t.Tensor, t.Tensor, t.Tensor],
+        base_input: tuple[Tensor, Tensor, Tensor],
+        ablation_input: tuple[Tensor, Tensor, Tensor],
         loss_fn: Callable[[Tensor, Tensor], Tensor],
         optimizer: t.optim.Optimizer,
-    ):
+    ) -> dict:
         optimizer.zero_grad()
         hl_node = self.sample_hl_name()  # sample a high-level variable to ablate
         loss = self.get_IIT_loss_over_batch(

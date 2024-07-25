@@ -1,15 +1,25 @@
 import numpy as np
 import torch as t
+from torch import Tensor
+from transformer_lens.hook_points import HookedRootModule, HookPoint
 
-import iit.utils.node_picker as node_picker
 from iit.model_pairs.base_model_pair import Callable, Tensor
 from iit.model_pairs.iit_behavior_model_pair import IITBehaviorModelPair
+from iit.model_pairs.ll_model import LLModel
+import iit.utils.node_picker as node_picker
 from iit.utils.nodes import LLNode
 from iit.utils.metric import MetricStore, MetricStoreCollection, MetricType
+from iit.utils.correspondence import Correspondence
 
 
 class StrictIITModelPair(IITBehaviorModelPair):
-    def __init__(self, hl_model, ll_model, corr, training_args={}):
+    def __init__(
+            self, 
+            hl_model: HookedRootModule, 
+            ll_model: HookedRootModule | LLModel, 
+            corr: Correspondence, 
+            training_args: dict = {}
+            ):
         default_training_args = {
             "batch_size": 256,
             "lr": 0.001,
@@ -27,7 +37,7 @@ class StrictIITModelPair(IITBehaviorModelPair):
         )
 
     @staticmethod
-    def make_train_metrics():
+    def make_train_metrics() -> MetricStoreCollection:
         return MetricStoreCollection(
             [
                 MetricStore("train/iit_loss", MetricType.LOSS),
@@ -37,7 +47,7 @@ class StrictIITModelPair(IITBehaviorModelPair):
         )
     
     @staticmethod
-    def make_test_metrics():
+    def make_test_metrics() -> MetricStoreCollection:
         return MetricStoreCollection(
             IITBehaviorModelPair.make_test_metrics().metrics + [MetricStore("val/strict_accuracy", MetricType.ACCURACY)],
         )
@@ -47,11 +57,11 @@ class StrictIITModelPair(IITBehaviorModelPair):
 
     def run_train_step(
         self,
-        base_input,
-        ablation_input,
+        base_input: tuple[Tensor, Tensor, Tensor],
+        ablation_input: tuple[Tensor, Tensor, Tensor],
         loss_fn: Callable[[Tensor, Tensor], Tensor],
         optimizer: t.optim.Optimizer,
-    ):
+    ) -> dict:
         use_single_loss = self.training_args["use_single_loss"]
 
         iit_loss = 0
@@ -102,7 +112,12 @@ class StrictIITModelPair(IITBehaviorModelPair):
             "train/strict_loss": ll_loss.item(),
         }
 
-    def run_eval_step(self, base_input, ablation_input, loss_fn: Callable[[Tensor, Tensor], Tensor]):
+    def run_eval_step(
+            self, 
+            base_input: tuple[Tensor, Tensor, Tensor],
+            ablation_input: tuple[Tensor, Tensor, Tensor],
+            loss_fn: Callable[[Tensor, Tensor], Tensor]
+            ) -> dict:
         eval_returns = super().run_eval_step(base_input, ablation_input, loss_fn)
         base_x, base_y = base_input[0:2]
         ablation_x, ablation_y = ablation_input[0:2]
@@ -135,7 +150,7 @@ class StrictIITModelPair(IITBehaviorModelPair):
         return eval_returns
 
 
-    def _check_early_stop_condition(self, test_metrics: list[MetricStore]):
+    def _check_early_stop_condition(self, test_metrics: list[MetricStore]) -> bool:
         metrics_to_check = []
         for metric in test_metrics:
             if metric.get_name() == "val/strict_accuracy" and self.training_args["strict_weight"] > 0:
