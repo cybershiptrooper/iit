@@ -18,7 +18,7 @@ ioi_cfg = {
 }
 
 
-def make_corr_dict(include_mlp=False, eval=False, use_pos_embed=False):
+def make_corr_dict(include_mlp: bool = False, eval: bool = False, use_pos_embed: bool = False) -> dict:
     all_attns = [f"blocks.{i}.attn.hook_z" for i in range(ioi_cfg["n_layers"])]
     all_mlps = [f"blocks.{i}.mlp.hook_post" for i in range(ioi_cfg["n_layers"])]
     if eval:
@@ -69,7 +69,7 @@ corr = Correspondence.make_corr_from_dict(
 )
 
 
-def make_ll_edges(corr: Correspondence):
+def make_ll_edges(corr: Correspondence) -> list[tuple[LLNode, LLNode]]:
     def expand_nodes(ll_node: LLNode):
         ll_nodes_expanded = []
         for head_index in range(n_heads):

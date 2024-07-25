@@ -10,15 +10,17 @@ from typing import Dict, List, Optional
 
 import einops
 import torch
+from torch import Tensor
 import tqdm.auto as tqdm
 from datasets import load_dataset
 from torch.utils.data import DataLoader, Dataset
+from transformers import AutoTokenizer
 
-from transformer_lens import utils
+from transformer_lens import utils, HookedTransformer
 
 
 # %%
-def sanity_check(model):
+def sanity_check(model: HookedTransformer) -> Tensor:
     """
     Very basic eval - just feeds a string into the model (in this case, the first paragraph of Circuits: Zoom In), and returns the loss. It's a rough and quick sanity check - if the loss is <5 the model is probably OK, if the loss is >7 something's gone wrong.
 
@@ -31,7 +33,7 @@ def sanity_check(model):
 
 
 # %%
-def make_wiki_data_loader(tokenizer, batch_size=8):
+def make_wiki_data_loader(tokenizer: AutoTokenizer, batch_size: int = 8) -> DataLoader:
     """
     Evaluate on Wikitext 2, a dump of Wikipedia articles. (Using the train set because it's larger, I don't really expect anyone to bother with quarantining the validation set nowadays.)
 
@@ -46,7 +48,7 @@ def make_wiki_data_loader(tokenizer, batch_size=8):
     return data_loader
 
 
-def make_owt_data_loader(tokenizer, batch_size=8):
+def make_owt_data_loader(tokenizer: AutoTokenizer, batch_size: int = 8) -> DataLoader:
     """
     Evaluate on OpenWebText an open source replication of the GPT-2 training corpus (Reddit links with >3 karma)
 
@@ -61,7 +63,7 @@ def make_owt_data_loader(tokenizer, batch_size=8):
     return data_loader
 
 
-def make_pile_data_loader(tokenizer, batch_size=8):
+def make_pile_data_loader(tokenizer: AutoTokenizer, batch_size: int = 8) -> DataLoader:
     """
     Evaluate on the first 10k texts from The Pile.
 
@@ -77,7 +79,7 @@ def make_pile_data_loader(tokenizer, batch_size=8):
     return data_loader
 
 
-def make_code_data_loader(tokenizer, batch_size=8):
+def make_code_data_loader(tokenizer: AutoTokenizer, batch_size: int = 8) -> DataLoader:
     """
     Evaluate on the CodeParrot dataset, a dump of Python code.
 
@@ -106,7 +108,12 @@ DATASET_LOADERS = [
 
 # %%
 @torch.inference_mode()
-def evaluate_on_dataset(model, data_loader, truncate=100, device="cuda"):
+def evaluate_on_dataset(
+    model: HookedTransformer, 
+    data_loader: DataLoader, 
+    truncate: int = 100, 
+    device: str = "cuda"
+    ) -> float:
     running_loss = 0
     total = 0
     for batch in tqdm.tqdm(data_loader):
@@ -121,8 +128,13 @@ def evaluate_on_dataset(model, data_loader, truncate=100, device="cuda"):
 # %%
 @torch.inference_mode()
 def induction_loss(
-    model, tokenizer=None, batch_size=4, subseq_len=384, prepend_bos=None, device="cuda"
-):
+    model: HookedTransformer, 
+    tokenizer: Optional[AutoTokenizer] = None,
+    batch_size: int = 4, 
+    subseq_len: int = 384, 
+    prepend_bos: Optional[bool] = None, 
+    device: str = "cuda"
+) -> Tensor:
     """
     Generates a batch of random sequences repeated twice, and measures model performance on the second half. Tests whether a model has induction heads.
 
@@ -155,7 +167,12 @@ def induction_loss(
 
 # %%
 @torch.inference_mode()
-def evaluate(model, truncate=100, batch_size=8, tokenizer=None):
+def evaluate(
+    model: HookedTransformer, 
+    truncate: int = 100, 
+    batch_size: int = 8,
+    tokenizer: Optional[AutoTokenizer] = None
+    ) -> Dict[str, float]:
     if tokenizer is None:
         tokenizer = model.tokenizer
     losses = {}
@@ -201,7 +218,7 @@ class IOIDataset(Dataset):
 
     def __init__(
         self,
-        tokenizer,
+        tokenizer: AutoTokenizer,
         templates: Optional[List[str]] = None,
         names: Optional[List[str]] = None,
         nouns: Optional[Dict[str, List[str]]] = None,
@@ -230,7 +247,7 @@ class IOIDataset(Dataset):
     def __len__(self):
         return len(self.samples)
 
-    def __getitem__(self, idx, pad_token=False):
+    def __getitem__(self, idx: int, pad_token: bool = False) -> Dict[str, Tensor]:
         sample = self.samples[idx]
         prompt = self.tokenizer.encode(sample["text"])
         if self.prepend_bos:
@@ -247,7 +264,7 @@ class IOIDataset(Dataset):
             "idx_to_ablate": idx_to_ablate,
         }
 
-    def get_sample(self, symmetric=False) -> List[Dict[str, str]]:
+    def get_sample(self, symmetric: bool = False) -> List[Dict[str, str]]:
         template: str = random.choice(self.templates)
         for noun_type, noun_list in self.nouns.items():
             template = template.replace(f"[{noun_type}]", random.choice(noun_list))
@@ -271,11 +288,11 @@ class IOIDataset(Dataset):
         return samples
 
     @staticmethod
-    def get_default_names():
+    def get_default_names() -> List[str]:
         return ["John", "Mary"]
 
     @staticmethod
-    def get_default_templates():
+    def get_default_templates() -> List[str]:
         return [
             "Then, [B] and [A] went to the [LOCATION]. [A] gave the [OBJECT] to [B]",
             "Then, [A] and [B] went to the [LOCATION]. [B] gave the [OBJECT] to [A]",
@@ -284,7 +301,7 @@ class IOIDataset(Dataset):
         ]
 
     @staticmethod
-    def get_default_nouns():
+    def get_default_nouns() -> Dict[str, List[str]]:
         return {
             "LOCATION": ["store", "market"],
             "OBJECT": ["milk", "eggs", "bread"],
@@ -293,8 +310,13 @@ class IOIDataset(Dataset):
 
 @torch.inference_mode()
 def ioi_eval(
-    model, dataset=None, batch_size=8, num_samples=1000, tokenizer=None, symmetric=False
-):
+    model: HookedTransformer, 
+    dataset: Optional[Dataset] = None, 
+    batch_size: int = 8, 
+    num_samples: int = 1000, 
+    tokenizer: Optional[AutoTokenizer] = None, 
+    symmetric: bool = False
+) -> Dict[str, float]:
     """Evaluate the Model on the Indirect Object Identification Task.
 
     Args:
@@ -372,18 +394,18 @@ class IOIDatasetWrapper(IOIDataset):
         super().__init__(*args, **kwargs)
         self.device = device
         
-    def get_inputs(self):
+    def get_inputs(self) -> Tensor:
         items = [self.__getitem__(i) for i in range(len(self))]
         inputs = [item[0] for item in items]
         inputs_tensor = torch.stack(inputs)
         return inputs_tensor
     
-    def get_targets(self):
+    def get_targets(self) -> list[Tensor]:
         items = [self.__getitem__(i) for i in range(len(self))]
         targets = [item[1] for item in items]
         return targets
     
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor, Tensor]:
         x = super().__getitem__(idx)
         prompt = x['prompt']
         y = list(prompt[1:])

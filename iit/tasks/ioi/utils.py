@@ -1,7 +1,17 @@
-from .ioi_dataset_tl import *
-from .ioi_hl import *
+import torch as t
 
-def make_ioi_dataset_and_hl(num_samples, ll_model, NAMES, device=DEVICE, verbose=False):
+from iit.model_pairs.ll_model import LLModel
+from iit.utils.config import DEVICE
+from .ioi_hl import IOI_HL
+from .ioi_dataset_tl import IOIDataset, IOIDatasetWrapper
+
+def make_ioi_dataset_and_hl(
+        num_samples: int, 
+        ll_model: LLModel, 
+        NAMES: list[str], 
+        device: t.device = DEVICE, 
+        verbose: bool = False
+        ) -> tuple[IOIDatasetWrapper, IOI_HL]:
     ioi_dataset_tl = IOIDataset(
     num_samples=num_samples,
     tokenizer=ll_model.tokenizer,

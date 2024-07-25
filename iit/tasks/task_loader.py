@@ -1,8 +1,8 @@
 from .mnist_pvr.dataset import ImagePVRDataset
 from .mnist_pvr.utils import make_mnist_dataset
 from .mnist_pvr.get_alignment import get_alignment as get_mnist_pvr_corr
-from transformer_lens.hook_points import HookedRootModule
 from iit.utils.iit_dataset import IITDataset
+from iit.utils.correspondence import Correspondence
 
 
 def get_dataset(
@@ -39,7 +39,7 @@ def get_dataset(
     return IITDataset(train_set, train_set), IITDataset(test_set, test_set)
 
 
-def get_alignment(task: str, config: dict = {}):
+def get_alignment(task: str, config: dict = {}) -> Correspondence:
     if "pvr" in task:
         default_config = {
             "mode": "q",
