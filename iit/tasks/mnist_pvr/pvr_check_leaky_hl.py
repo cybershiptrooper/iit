@@ -3,7 +3,7 @@ from transformer_lens.hook_points import HookedRootModule, HookPoint
 from iit.utils.config import DEVICE
 from .utils import *
 from iit.utils.index import Ix
-from iit.model_pairs.base_model_pair import HLNode, LLNode
+from iit.utils.nodes import HLNode, LLNode
 
 
 class MNIST_PVR_Leaky_HL(HookedRootModule):

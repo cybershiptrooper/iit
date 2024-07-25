@@ -1,8 +1,8 @@
-from iit.model_pairs.nodes import HookName
+from iit.utils.nodes import HookName
 import torch as t
 from transformer_lens.hook_points import HookedRootModule, HookPoint
 from iit.utils.config import DEVICE
-from iit.model_pairs.base_model_pair import HLNode, LLNode
+from iit.utils.nodes import HLNode, LLNode
 from iit.utils.index import Ix
 from .utils import *
 from iit.tasks.hl_model import HLModel

@@ -5,7 +5,7 @@ import numpy as np
 from typing import Callable
 from torch import Tensor
 import torch as t
-from iit.model_pairs.base_model_pair import HLNode
+from iit.utils.nodes import HLNode
 import iit.utils.index as index
 
 

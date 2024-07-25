@@ -1,6 +1,6 @@
 import pickle
 
-from iit.model_pairs.nodes import HLNode, LLNode
+from iit.utils.nodes import HLNode, LLNode
 
 class Correspondence(dict[HLNode, set[LLNode]]):
     def __init__(

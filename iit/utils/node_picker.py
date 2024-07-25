@@ -2,7 +2,7 @@ import torch as t
 from transformer_lens import HookedTransformer
 
 import iit.utils.index as index
-from iit.model_pairs.nodes import LLNode
+from iit.utils.nodes import LLNode
 from iit.utils.correspondence import Correspondence
 
 LLParamNode = LLNode
