@@ -5,14 +5,14 @@ from PIL import Image
 from iit.model_pairs.base_model_pair import HLNode
 
 
-def get_hookpoint_labels(hookpoints):
+def get_hookpoint_labels(hookpoints: list[str]) -> list[str]:
     return [
         i.replace("mod.", "").replace(".hook_point", "").replace(".", " ")
         for i in hookpoints
     ]
 
 
-def get_leaky_hlnode_labels(hl_nodes):
+def get_leaky_hlnode_labels(hl_nodes: list[str | HLNode]) -> list[str]:
     x_tick_string = """{} -> {}"""
     if type(hl_nodes[0]) == HLNode:
         hl_nodes = [i.name for i in hl_nodes]
@@ -24,12 +24,12 @@ def get_leaky_hlnode_labels(hl_nodes):
 
 
 def plot_probe_stats(
-    correctness_stats_per_layer,
-    leaky_stats_per_layer,
-    reduction="max",
-    prefix="",
-    use_wandb=False,
-):
+    correctness_stats_per_layer: dict[str, dict],
+    leaky_stats_per_layer: dict[str, dict],
+    reduction: str = "max",
+    prefix: str = "",
+    use_wandb: bool = False,
+) -> None:
     # make arrays
     hookpoints = list(correctness_stats_per_layer.keys())
     get_hl_nodes = lambda stats: list(stats[list(stats.keys())[0]]["probes"].keys())
@@ -124,7 +124,7 @@ def plot_probe_stats(
     print("Plotted probe stats. Find them in plots folder.")
 
 
-def plot_ablation_stats(stats_per_layer, prefix="", use_wandb=False):
+def plot_ablation_stats(stats_per_layer: dict[str, dict], prefix: str = "", use_wandb: bool = False) -> None:
     # make arrays
     hookpoints = list(stats_per_layer.keys())
     hl_nodes = list(stats_per_layer[hookpoints[0]].keys())

@@ -1,3 +1,4 @@
+from typing import Optional
 import pickle
 
 from iit.utils.nodes import HLNode, LLNode
@@ -6,13 +7,13 @@ class Correspondence(dict[HLNode, set[LLNode]]):
     def __init__(
         self,
         *args,
-        suffixes={"attn": "attn.hook_result", "mlp": "mlp.hook_post"},
+        suffixes: dict = {"attn": "attn.hook_result", "mlp": "mlp.hook_post"},
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.suffixes = suffixes
 
-    def __setattr__(self, key, value):
+    def __setattr__(self, key: str | HLNode, value: dict | set[LLNode]) -> None:
         if key == "suffixes":
             assert isinstance(value, dict), ValueError(
                 f"__value is not a dict, but {type(value)}"
@@ -30,13 +31,13 @@ class Correspondence(dict[HLNode, set[LLNode]]):
         # print(self.keys(), self.values())
         super().__setattr__(key, value)
 
-    def get_suffixes(self):
+    def get_suffixes(self) -> dict:
         return self.suffixes
 
     @staticmethod
     def get_hook_suffix(corr: dict[HLNode, set[LLNode]]) -> dict[str, str]:
         suffixes = {}
-        for hl_node, ll_nodes in corr.items():
+        for _, ll_nodes in corr.items():
             for ll_node in ll_nodes:
                 # add everything after 'blocks.<layer>.' to the set
                 suffix = ll_node.name.split(".")[2:]
@@ -60,7 +61,12 @@ class Correspondence(dict[HLNode, set[LLNode]]):
 
 
     @classmethod
-    def make_corr_from_dict(cls, d: dict, suffixes=None, make_suffixes_from_corr=False):
+    def make_corr_from_dict(
+        cls, 
+        d: dict, 
+        suffixes: Optional[dict[str, str]] = None, 
+        make_suffixes_from_corr: bool = False
+        ) -> "Correspondence":
         if make_suffixes_from_corr:
             suffixes = Correspondence.get_hook_suffix(d)
         return cls(
@@ -71,5 +77,5 @@ class Correspondence(dict[HLNode, set[LLNode]]):
             suffixes=suffixes,
         )
 
-    def save(self, filename: str):
+    def save(self, filename: str) -> None:
         pickle.dump(self, open(filename, "wb"))

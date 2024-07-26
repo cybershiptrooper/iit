@@ -1,16 +1,20 @@
-import torch
+from typing import Callable
+
+import torch as t
 import torch.nn as nn
-from iit.model_pairs.base_model_pair import HLNode, LLNode, BaseModelPair
+from torch import Tensor
 from tqdm import tqdm
+
+from iit.model_pairs.base_model_pair import HLNode, LLNode, BaseModelPair
 from iit.utils.config import DEVICE
 
 
 def construct_probe(
     high_level_node: HLNode,
     ll_nodes: set[LLNode],
-    dummy_cache: dict[str, torch.Tensor],
+    dummy_cache: dict[str, t.Tensor],
     bias=False,
-):
+) -> nn.Linear:
     """
     Makes a probe for a given high-level node, given the low-level model and nodes.
     """
@@ -27,10 +31,10 @@ def construct_probe(
     return nn.Linear(size, high_level_node.num_classes, bias=bias).to(DEVICE)
 
 
-def construct_probes(model_pair: BaseModelPair, input_shape: tuple[int], bias=False):
+def construct_probes(model_pair: BaseModelPair, input_shape: tuple[int], bias: bool = False) -> dict[str, nn.Linear]:
     probes = {}
     _, dummy_cache = model_pair.ll_model.run_with_cache(
-        torch.zeros(input_shape).to(DEVICE)
+        t.zeros(input_shape).to(DEVICE)
     )
     for hl_node, ll_nodes in model_pair.corr.items():
         probe = construct_probe(hl_node, ll_nodes, dummy_cache, bias=bias)
@@ -41,20 +45,20 @@ def construct_probes(model_pair: BaseModelPair, input_shape: tuple[int], bias=Fa
 def train_probes_on_model_pair(
     model_pair: BaseModelPair,
     input_shape: str,
-    train_set: torch.utils.data.Dataset,
+    train_set: t.utils.data.Dataset,
     training_args: dict,
-):
+) -> dict[str, dict]:
     probes = construct_probes(model_pair, input_shape=input_shape)
     params = []
     for p in probes.values():
         p.train()
         params += list(p.parameters())
 
-    probe_optimizer = torch.optim.Adam(params, lr=training_args["lr"])
+    probe_optimizer = t.optim.Adam(params, lr=training_args["lr"])
     criterion = nn.CrossEntropyLoss()
     probe_losses = {k: [] for k in probes.keys()}
     probe_accuracies = {k: [] for k in probes.keys()}
-    loader = torch.utils.data.DataLoader(
+    loader = t.utils.data.DataLoader(
         train_set,
         batch_size=training_args["batch_size"],
         shuffle=True,
@@ -96,7 +100,12 @@ def train_probes_on_model_pair(
     return {"probes": probes, "loss": probe_losses, "accuracy": probe_accuracies}
 
 
-def evaluate_probe(probes, model_pair, test_set, criterion):
+def evaluate_probe(
+        probes: dict[str, nn.Linear],
+        model_pair: BaseModelPair, 
+        test_set: t.utils.data.Dataset, 
+        criterion: Callable[[Tensor, Tensor], Tensor]
+        ) -> dict[str, dict]:
     probe_stats = {}
     probe_stats["test loss"] = {}
     probe_stats["test accuracy"] = {}
@@ -104,10 +113,10 @@ def evaluate_probe(probes, model_pair, test_set, criterion):
         probe.eval()
         probe_loss = 0
         probe_accuracy = 0
-        loader = torch.utils.data.DataLoader(
+        loader = t.utils.data.DataLoader(
             test_set, batch_size=256, shuffle=True, num_workers=0
         )
-        with torch.no_grad():
+        with t.no_grad():
             for x, y, int_vars in loader:
                 x = x.to(DEVICE)
                 y = y.to(DEVICE)

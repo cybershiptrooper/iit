@@ -1,4 +1,10 @@
-import transformer_lens
+import os
+import json
+import argparse
+
+import torch as t
+import numpy as np
+from transformer_lens import HookedTransformer
 
 from iit.model_pairs.ioi_model_pair import IOI_ModelPair
 from iit.tasks.ioi import (
@@ -8,15 +14,19 @@ from iit.tasks.ioi import (
     make_corr_dict,
     suffixes,
 )
-from iit.utils.eval_ablations import *
-import numpy as np
+from iit.utils.eval_ablations import (
+    check_causal_effect,
+    get_causal_effects_for_all_nodes,
+    make_combined_dataframe_of_results,
+    save_result,
+)
+from iit.utils.correspondence import Correspondence
 from iit.utils.iit_dataset import IITDataset
 from iit.utils.eval_datasets import IITUniqueDataset
-import json
 from iit.utils.io_scripts import load_files_from_wandb
 
 
-def eval_ioi(args):
+def eval_ioi(args: argparse.ArgumentParser) -> None:
     weights = args.weights
     use_mean_cache = args.mean
     device = args.device
@@ -27,10 +37,10 @@ def eval_ioi(args):
     batch_size = args.batch_size
     num_samples = args.num_samples
     # load model
-    ll_cfg = transformer_lens.HookedTransformer.from_pretrained("gpt2").cfg.to_dict()
+    ll_cfg = HookedTransformer.from_pretrained("gpt2").cfg.to_dict()
     ll_cfg.update(ioi_cfg)
 
-    ll_model = transformer_lens.HookedTransformer(ll_cfg).to(device)
+    ll_model = HookedTransformer(ll_cfg).to(device)
     if args.load_from_wandb:
         load_files_from_wandb(
             "ioi",
@@ -42,7 +52,7 @@ def eval_ioi(args):
         )
     try:
         ll_model.load_state_dict(
-            torch.load(f"{save_dir}/ll_model_{weights}.pth", map_location=device)
+            t.load(f"{save_dir}/ll_model_{weights}.pth", map_location=device)
         )
     except FileNotFoundError:
         raise FileNotFoundError(f"Model not found at {save_dir}")

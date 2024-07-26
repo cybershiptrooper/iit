@@ -13,7 +13,7 @@ class HLNode:
     num_classes: int
     index: Optional[TorchIndex] = Ix[[None]]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.index is None:
             self.index = Ix[[None]]
 
@@ -40,17 +40,17 @@ class LLNode:
     index: TorchIndex
     subspace: Optional[t.Tensor] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.index is None:
             self.index = Ix[[None]]
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return isinstance(other, LLNode) and dataclasses.astuple(
             self
         ) == dataclasses.astuple(other)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(dataclasses.astuple(self))
 
-    def get_index(self):
+    def get_index(self) -> tuple[slice]:
         return self.index.as_index

@@ -1,7 +1,9 @@
 import os
-import torch
-import numpy as np
 import time
+
+import numpy as np
+import torch as t
+from torch import Tensor
 np.set_printoptions(threshold=np.inf)
 
 class LoggingDict(dict):
@@ -13,9 +15,9 @@ class LoggingDict(dict):
         
         super().__init__(*args, **kwargs)
 
-    def compare(self, x, y):
-        if isinstance(x, (torch.Tensor)):
-            assert isinstance(y, (torch.Tensor)), "x and y are not the same type"
+    def compare(self, x, y) -> bool:
+        if isinstance(x, (Tensor)):
+            assert isinstance(y, (Tensor)), "x and y are not the same type"
             return (x == y).all()
         elif isinstance(x, (np.ndarray)):
             assert isinstance(y, (np.ndarray)), "x and y are not the same type"
@@ -26,8 +28,8 @@ class LoggingDict(dict):
         else:
             return x == y
     
-    def convert_tensor_to_numpy(self, x):
-        if isinstance(x, (torch.Tensor)):
+    def convert_tensor_to_numpy(self, x: Tensor | np.ndarray) -> np.ndarray:
+        if isinstance(x, (Tensor)):
             return x.cpu().detach().numpy()
         return x
     

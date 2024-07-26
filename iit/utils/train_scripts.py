@@ -1,4 +1,4 @@
-import transformer_lens
+from transformer_lens import HookedTransformer
 
 from iit.model_pairs.ioi_model_pair import IOI_ModelPair
 from iit.utils.iit_dataset import train_test_split
@@ -15,9 +15,7 @@ from iit.utils.correspondence import Correspondence
 from argparse import Namespace
 
 
-def train_ioi(
-    args: Namespace,
-):
+def train_ioi(args: Namespace) -> IOI_ModelPair:
     device = args.device
     num_samples = args.num_samples
     epochs = args.epochs
@@ -38,13 +36,13 @@ def train_ioi(
     t.manual_seed(0)
     np.random.seed(0)
 
-    ll_cfg = transformer_lens.HookedTransformer.from_pretrained(
+    ll_cfg = HookedTransformer.from_pretrained(
         "gpt2"
     ).cfg.to_dict()
     ll_cfg.update(ioi_cfg)
 
     ll_cfg["init_weights"] = True
-    ll_model = transformer_lens.HookedTransformer(ll_cfg).to(device)
+    ll_model = HookedTransformer(ll_cfg).to(device)
     print("making ioi dataset and hl")
     ioi_dataset, hl_model = make_ioi_dataset_and_hl(
         num_samples, ll_model, NAMES, device=args.device, verbose=True

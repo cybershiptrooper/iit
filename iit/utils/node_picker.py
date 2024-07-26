@@ -179,7 +179,7 @@ def get_params_not_in_circuit(
             params_not_in_circuit.append(param)
     return params_not_in_circuit
 
-def find_ll_node_by_name(name, list_of_nodes: list[LLNode]):
+def find_ll_node_by_name(name: str, list_of_nodes: list[LLNode]) -> list[LLNode]:
     ll_nodes = []
     for node in list_of_nodes:
         if node.name == name:

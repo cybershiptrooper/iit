@@ -11,11 +11,10 @@ class HookedModuleWrapper(HookedRootModule):
     def __init__(
         self,
         mod: t.nn.Module,
-        name="model",
-        recursive=False,
-        hook_self=True,
-        top_level=True,
-        hook_pre=False,
+        name: str = "model",
+        recursive: bool = False,
+        hook_self: bool = True,
+        hook_pre: bool = False,
     ):
         super().__init__()
         self.mod = mod  # deepcopy(mod)
@@ -32,7 +31,7 @@ class HookedModuleWrapper(HookedRootModule):
             self.wrap_hookpoints_recursively()
         self.setup()
 
-    def wrap_hookpoints_recursively(self, verbose=False):
+    def wrap_hookpoints_recursively(self, verbose: bool = False) -> None:
         show = lambda *args: print(*args) if verbose else None
         for key, submod in list(self.mod._modules.items()):
             if isinstance(submod, HookedModuleWrapper):
@@ -55,7 +54,7 @@ class HookedModuleWrapper(HookedRootModule):
             )
             self.mod.__setattr__(key, new_submod)
 
-    def forward(self, *args, **kwargs):
+    def forward(self, *args, **kwargs) -> Tensor:
         if self.hook_pre:
             result = self.mod.forward(self.hook_pre(*args, **kwargs))
         else:
@@ -65,6 +64,5 @@ class HookedModuleWrapper(HookedRootModule):
         assert isinstance(result, Tensor)
         return self.hook_point(result)
 
-
-def get_hook_points(model: HookedRootModule):
+def get_hook_points(model: HookedRootModule) -> list[str]:
     return [k for k in list(model.hook_dict.keys()) if "conv" in k]
