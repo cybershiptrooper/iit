@@ -1,13 +1,15 @@
+from typing import Callable
 import torch as t
+from torch import Tensor
 from transformer_lens.hook_points import HookedRootModule, HookPoint
 from iit.utils.config import DEVICE
-from .utils import *
+from .utils import MNIST_CLASS_MAP
 from iit.utils.index import Ix
 from iit.utils.nodes import HLNode, LLNode
 
 
 class MNIST_PVR_Leaky_HL(HookedRootModule):
-    def __init__(self, class_map=MNIST_CLASS_MAP, device=DEVICE):
+    def __init__(self, class_map: dict = MNIST_CLASS_MAP, device: t.device = DEVICE):
         super().__init__()
         hook_str = """hook_{}_leaked_to_{}"""
         self.leaky_hooks = {}
@@ -29,7 +31,7 @@ class MNIST_PVR_Leaky_HL(HookedRootModule):
         )
         self.setup()
 
-    def get_idx_to_intermediate(self, name: str):
+    def get_idx_to_intermediate(self, name: str) -> Callable[[Tensor], Tensor]:
         if "hook_tl" in name:
             return lambda intermediate_vars: intermediate_vars[:, 0]
         if "hook_tr" in name:
@@ -41,8 +43,8 @@ class MNIST_PVR_Leaky_HL(HookedRootModule):
         else:
             raise ValueError(f"Hook name {name} not recognised")
 
-    def forward(self, args):
-        input, label, intermediate_data = args
+    def forward(self, args: tuple[t.Any, t.Any, Tensor]) -> Tensor:
+        _, _, intermediate_data = args
         # print([a.shape for a in args])
         tl, tr, bl, br = [intermediate_data[:, i] for i in range(4)]
         # print(f"intermediate_data is a {type(intermediate_data)}; tl is a {type(tl)}")
@@ -68,7 +70,7 @@ class MNIST_PVR_Leaky_HL(HookedRootModule):
 hl = MNIST_PVR_Leaky_HL().to(DEVICE)
 
 
-def get_corr(mode, hook_point, model, input_shape):
+def get_corr(mode: str, hook_point: str, model: HookedRootModule, input_shape: tuple[int, int, int, int]) -> dict:
     with t.no_grad():
         out, cache = model.run_with_cache(t.zeros(input_shape, device=DEVICE))
         input_shape = cache[hook_point].shape

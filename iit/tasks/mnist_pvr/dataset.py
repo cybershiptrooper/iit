@@ -1,5 +1,7 @@
 import torch as t
+from torch import Tensor
 import torchvision
+import torchvision.datasets as datasets
 from torch.utils.data import Dataset
 from PIL import Image, ImageOps
 import numpy as np
@@ -17,14 +19,14 @@ class ImagePVRDataset(Dataset):
 
     def __init__(
         self,
-        base_dataset,
+        base_dataset: datasets.MNIST,
         class_map: dict[int, int] = MNIST_CLASS_MAP,
-        seed=0,
-        use_cache=True,
-        length=200000,
-        iid=True,
-        pad_size=0,
-        unique_per_quad=False,
+        seed: int = 0,
+        use_cache: bool = True,
+        length: int = 200000,
+        iid: bool = True,
+        pad_size: int = 0,
+        unique_per_quad: bool = False,
     ):
         self.base_dataset = base_dataset
         self.class_map = class_map
@@ -46,14 +48,14 @@ class ImagePVRDataset(Dataset):
         self.input_shape = None
         self.set_input_shape(self[0][0].unsqueeze(0).shape)
 
-    def set_input_shape(self, shape):
+    def set_input_shape(self, shape: t.Size) -> None:
         self.input_shape = shape
 
-    def get_input_shape(self):
+    def get_input_shape(self) -> None | t.Size:
         return self.input_shape
 
     @staticmethod
-    def concatenate_2x2(images):
+    def concatenate_2x2(images: list[Image.Image]) -> Image.Image:
         """
         Concatenates four PIL.Image.Image objects into a 2x2 square.
         """
@@ -68,7 +70,7 @@ class ImagePVRDataset(Dataset):
 
         return new_image
 
-    def make_label_from_intermediate(self, intermediate_vars):
+    def make_label_from_intermediate(self, intermediate_vars: Tensor) -> Tensor:
         """
         Returns the label for the new image based on the intermediate variables.
         """
@@ -76,7 +78,7 @@ class ImagePVRDataset(Dataset):
         new_label = t.tensor(intermediate_vars[pointer].item())
         return new_label
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> tuple[Tensor, Tensor, Tensor]:
         if index in self.cache and self.use_cache:
             return self.cache[index]
         if self.iid:
@@ -119,16 +121,16 @@ class ImagePVRDataset(Dataset):
             self.cache[index] = ret
         return ret
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.length
 
     def patch_at_hl_idx(
         self,
-        input: t.Tensor,
-        intermediate_var: t.Tensor,
+        input: Tensor,
+        intermediate_var: Tensor,
         idx: Index,
         idx_to_intermediate: int,
-    ):
+    ) -> tuple[Tensor, Tensor, Tensor]:
         """
         Patches the input and label to be compatible with the PVR model.
         """
@@ -158,7 +160,7 @@ class ImagePVRDataset(Dataset):
 
     def patch_batch_at_hl(
         self, batch: list, intermediate_vars: list, hl_node: HLNode
-    ):
+    ) -> tuple[list[Tensor], list[Tensor], list[Tensor]]:
         """
         Patches the input and label to be compatible with the PVR model.
         """
@@ -175,7 +177,7 @@ class ImagePVRDataset(Dataset):
             new_labels.append(new_label)
         return new_batch, new_labels, new_intermediate_vars
 
-    def get_idx_and_intermediate(self, hl_node: HLNode):
+    def get_idx_and_intermediate(self, hl_node: HLNode) -> tuple[Index, int]:
         input_shape = self.get_input_shape()
         width, height = input_shape[2], input_shape[3]
         if "hook_tl" in hl_node.name:

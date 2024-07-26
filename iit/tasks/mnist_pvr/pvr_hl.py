@@ -1,10 +1,11 @@
-from iit.utils.nodes import HookName
+from typing import Callable
 import torch as t
+from torch import Tensor
 from transformer_lens.hook_points import HookedRootModule, HookPoint
 from iit.utils.config import DEVICE
 from iit.utils.nodes import HLNode, LLNode
 from iit.utils.index import Ix
-from .utils import *
+from .utils import MNIST_CLASS_MAP
 from iit.tasks.hl_model import HLModel
 
 class MNIST_PVR_HL(HookedRootModule, HLModel):
@@ -12,7 +13,7 @@ class MNIST_PVR_HL(HookedRootModule, HLModel):
     A high-level implementation of the algorithm used for MNIST_PVR
     """
 
-    def __init__(self, class_map=MNIST_CLASS_MAP, device=DEVICE):
+    def __init__(self, class_map: dict = MNIST_CLASS_MAP, device: t.device = DEVICE):
         super().__init__()
         self.hook_tl = HookPoint()
         self.hook_tr = HookPoint()
@@ -23,13 +24,13 @@ class MNIST_PVR_HL(HookedRootModule, HLModel):
         )
         self.setup()
 
-    def uses_intermediate_variables(self):
+    def uses_intermediate_variables(self) -> bool:
         return True
 
-    def is_categorical(self):
+    def is_categorical(self) -> bool:
         return True
 
-    def get_idx_to_intermediate(self, name: HookName):
+    def get_idx_to_intermediate(self, name: str) -> Callable[[Tensor], Tensor]:
         """
         Returns a function that takes in a list of intermediate variables and returns the index of the one to use.
         """
@@ -44,8 +45,8 @@ class MNIST_PVR_HL(HookedRootModule, HLModel):
         else:
             raise NotImplementedError(name)
 
-    def forward(self, args):
-        input, label, intermediate_data = args
+    def forward(self, args: tuple[t.Any, t.Any, Tensor]) -> Tensor:
+        _, _, intermediate_data = args
         # print([a.shape for a in args])
         tl, tr, bl, br = [intermediate_data[:, i] for i in range(4)]
         # print(f"intermediate_data is a {type(intermediate_data)}; tl is a {type(tl)}")
@@ -68,7 +69,7 @@ hl_nodes = {
 }
 
 
-def get_corr(mode, hook_point, model: HookedRootModule, input_shape):
+def get_corr(mode: str, hook_point: str, model: HookedRootModule, input_shape: tuple[int, int, int, int]) -> dict:
     with t.no_grad():
         out, cache = model.run_with_cache(t.zeros(input_shape).to(DEVICE))
         # print(out.shape)

@@ -1,3 +1,5 @@
+from transformer_lens.hook_points import HookedRootModule
+
 from .pvr_hl import get_corr, MNIST_PVR_HL
 from .pvr_check_leaky_hl import get_corr as get_corr_leaky, MNIST_PVR_Leaky_HL
 import torchvision
@@ -6,7 +8,7 @@ import torch as t
 from iit.utils.wrapper import HookedModuleWrapper
 
 
-def get_alignment(config, task):
+def get_alignment(config: dict, task: str) -> tuple[HookedModuleWrapper, HookedRootModule, dict]:
     if config["model"] == "resnet18":
         resnet18 = torchvision.models.resnet18().to(DEVICE)  # 11M parameters
         resnet18.fc = t.nn.Linear(512, 10).to(DEVICE)
