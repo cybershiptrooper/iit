@@ -31,14 +31,14 @@ def construct_probe(
     return nn.Linear(size, high_level_node.num_classes, bias=bias).to(DEVICE)
 
 
-def construct_probes(model_pair: BaseModelPair, input_shape: tuple[int], bias: bool = False) -> dict[str, nn.Linear]:
+def construct_probes(model_pair: BaseModelPair, input_shape: tuple[int], bias: bool = False) -> dict[HLNode, nn.Linear]:
     probes = {}
     _, dummy_cache = model_pair.ll_model.run_with_cache(
         t.zeros(input_shape).to(DEVICE)
     )
     for hl_node, ll_nodes in model_pair.corr.items():
         probe = construct_probe(hl_node, ll_nodes, dummy_cache, bias=bias)
-        probes[hl_node.name] = probe
+        probes[hl_node] = probe
     return probes
 
 

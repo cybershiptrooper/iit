@@ -1,6 +1,6 @@
 
 import torch as t
-from transformer_lens.hook_points import HookedRootModule
+from transformer_lens.hook_points import HookedRootModule #type: ignore
 
 from iit.model_pairs.iit_behavior_model_pair import IITBehaviorModelPair
 from iit.model_pairs.ll_model import LLModel

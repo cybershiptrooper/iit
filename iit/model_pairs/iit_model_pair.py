@@ -3,10 +3,9 @@ from typing import Callable
 import numpy as np
 import torch as t
 from torch import Tensor
-from transformer_lens.hook_points import HookedRootModule
+from transformer_lens.hook_points import HookedRootModule #type: ignore
 
 from iit.model_pairs.base_model_pair import BaseModelPair
-from iit.utils.nodes import HLNode, LLNode
 from iit.utils.correspondence import Correspondence
 from iit.utils.metric import MetricStore, MetricStoreCollection, MetricType
 from iit.model_pairs.ll_model import LLModel
@@ -23,7 +22,7 @@ class IITModelPair(BaseModelPair):
         self.hl_model = hl_model
         self.hl_model.requires_grad_(False)
 
-        self.corr: dict[HLNode, set[LLNode]] = corr
+        self.corr = corr
         print(self.hl_model.hook_dict)
         print(self.corr.keys())
         assert all([str(k) in self.hl_model.hook_dict for k in self.corr.keys()])
@@ -50,7 +49,7 @@ class IITModelPair(BaseModelPair):
         self.wandb_method = "iit"
 
     @property
-    def loss_fn(self) -> Tensor:
+    def loss_fn(self) -> Callable[[Tensor, Tensor], Tensor]:
         # TODO: make this more general
         def class_loss(output, target):
             # convert to (N, C, ...) if necessary

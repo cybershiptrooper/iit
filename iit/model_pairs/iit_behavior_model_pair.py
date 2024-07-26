@@ -2,7 +2,7 @@ from typing import Callable
 
 import torch as t
 from torch import Tensor
-from transformer_lens.hook_points import HookedRootModule
+from transformer_lens.hook_points import HookedRootModule #type: ignore
 
 from iit.model_pairs.iit_model_pair import IITModelPair
 from iit.model_pairs.ll_model import LLModel
@@ -74,9 +74,6 @@ class IITBehaviorModelPair(IITModelPair):
     ) -> dict:
         use_single_loss = self.training_args["use_single_loss"]
 
-        iit_loss = 0
-        behavior_loss = 0
-
         hl_node = self.sample_hl_name()  # sample a high-level variable to ablate
         iit_loss = (
             self.get_IIT_loss_over_batch(base_input, ablation_input, hl_node, loss_fn)
@@ -147,10 +144,11 @@ class IITBehaviorModelPair(IITModelPair):
         }
     
 
-    def _check_early_stop_condition(self, test_metrics: list[MetricStore]) -> bool:
+    def _check_early_stop_condition(self, test_metrics: MetricStoreCollection) -> bool:
         if self.training_args["iit_weight"] == 0:
             for metric in test_metrics:
                 if metric.get_name() == "val/accuracy":
                     return metric.get_value() == 100
         else:
             return super()._check_early_stop_condition(test_metrics)
+        return False

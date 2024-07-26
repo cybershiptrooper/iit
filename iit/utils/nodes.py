@@ -11,7 +11,7 @@ HLCache = dict[HookName, t.Tensor]
 class HLNode:
     name: HookName
     num_classes: int
-    index: Optional[TorchIndex] = Ix[[None]]
+    index: TorchIndex = Ix[[None]]
 
     def __post_init__(self) -> None:
         if self.index is None:

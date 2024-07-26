@@ -3,19 +3,19 @@ from typing import Any, Callable, final
 
 import numpy as np
 import torch as t
-import transformer_lens as tl
+import transformer_lens as tl # type: ignore
 from torch import Tensor
 from torch.utils.data import DataLoader
-from tqdm import tqdm
-from transformer_lens.hook_points import HookedRootModule, HookPoint
+from tqdm import tqdm # type: ignore
+from transformer_lens.hook_points import HookedRootModule, HookPoint # type: ignore
 
-import wandb
+import wandb # type: ignore
 from iit.model_pairs.ll_model import LLModel
 from iit.utils.nodes import HLNode, LLNode
 from iit.utils.config import WANDB_ENTITY
 from iit.utils.correspondence import Correspondence
 from iit.utils.iit_dataset import IITDataset
-from iit.utils.index import Ix, Index
+from iit.utils.index import Ix, TorchIndex
 from iit.utils.metric import MetricStoreCollection, MetricType
 
 
@@ -55,7 +55,7 @@ class BaseModelPair(ABC):
         ablation_input: tuple[Tensor, Tensor, Tensor],
         loss_fn: Callable[[Tensor, Tensor], Tensor],
         optimizer: t.optim.Optimizer,
-    ) -> MetricStoreCollection:
+    ) -> dict:
         pass
 
     @abstractmethod
@@ -64,7 +64,7 @@ class BaseModelPair(ABC):
         base_input: tuple[Tensor, Tensor, Tensor],
         ablation_input: tuple[Tensor, Tensor, Tensor],
         loss_fn: Callable[[Tensor, Tensor], Tensor],
-    ) -> MetricStoreCollection:
+    ) -> dict:
         pass
 
     ###########################################
@@ -103,7 +103,7 @@ class BaseModelPair(ABC):
         return hl_output, ll_output
 
     @staticmethod
-    def get_label_idxs() -> Index:
+    def get_label_idxs() -> TorchIndex:
         '''
         Returns the index of the label for which the IIT loss is computed. 
         NOT to be used for computing the behavior loss.
@@ -114,7 +114,7 @@ class BaseModelPair(ABC):
         self.corr = corr
 
     def sample_hl_name(self) -> HLNode:
-        return self.rng.choice(list(self.corr.keys()))
+        return self.rng.choice(np.array(list(self.corr.keys())))
 
     def make_hl_ablation_hook(self, hl_node: HLNode) -> Callable[[Tensor, HookPoint], Tensor]:
         assert isinstance(hl_node, HLNode), ValueError(
@@ -256,7 +256,7 @@ class BaseModelPair(ABC):
         if use_wandb:
             wandb.config.update(training_args)
             wandb.config.update({"method": self.wandb_method})
-            wandb.run.log_code()
+            wandb.run.log_code() # type: ignore
 
         for epoch in tqdm(range(epochs)):
             train_metrics = self._run_train_epoch(train_loader, loss_fn, optimizer)
@@ -266,10 +266,10 @@ class BaseModelPair(ABC):
             self.test_metrics = test_metrics
             self.train_metrics = train_metrics
             self._print_and_log_metrics(
-                epoch, train_metrics.metrics + test_metrics.metrics, use_wandb
+                epoch, MetricStoreCollection(train_metrics.metrics + test_metrics.metrics), use_wandb
             )
 
-            if early_stop and self._check_early_stop_condition(test_metrics.metrics):
+            if early_stop and self._check_early_stop_condition(test_metrics):
                 break
 
         if use_wandb:
@@ -322,8 +322,7 @@ class BaseModelPair(ABC):
                 )
         return test_metrics
 
-    @staticmethod
-    def _check_early_stop_condition(test_metrics: MetricStoreCollection) -> bool:
+    def _check_early_stop_condition(self, test_metrics: MetricStoreCollection) -> bool:
         """
         Returns True if all types of accuracy metrics reach 100%
         """
@@ -331,11 +330,12 @@ class BaseModelPair(ABC):
         for metric in test_metrics:
             if metric.type == MetricType.ACCURACY:
                 got_accuracy_metric = True
-                if metric.get_value() < 100:
+                val = metric.get_value()
+                if isinstance(val, float) and val < 100:
                     return False
         if not got_accuracy_metric:
             raise ValueError("No accuracy metric found in test_metrics!")
-        return True
+        return False
 
     @final
     @staticmethod

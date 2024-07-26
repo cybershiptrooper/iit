@@ -4,13 +4,12 @@ import wandb
 import numpy as np
 import torch as t
 from torch import Tensor
-from tqdm import tqdm
-from transformer_lens.hook_points import HookedRootModule
+from tqdm import tqdm # type: ignore
+from transformer_lens.hook_points import HookedRootModule #type: ignore
 
 from iit.model_pairs.iit_model_pair import IITModelPair
-from iit.utils.nodes import HLNode, LLNode
 from iit.utils.config import WANDB_ENTITY
-from iit.utils.probes import construct_probes
+from iit.utils.probes import construct_probes #type: ignore
 from iit.utils.correspondence import Correspondence
 from iit.utils.iit_dataset import IITDataset
 from iit.model_pairs.ll_model import LLModel
@@ -30,7 +29,7 @@ class IITProbeSequentialPair(IITModelPair):
         training_args = {**default_training_args, **training_args}
         super().__init__(hl_model, ll_model, corr, training_args)
 
-    def run_train_step(
+    def run_train_step( # type: ignore
         self,
         base_input: tuple[Tensor, Tensor, Tensor],
         ablation_input: tuple[Tensor, Tensor, Tensor],
@@ -39,20 +38,19 @@ class IITProbeSequentialPair(IITModelPair):
         probes: dict,
         probe_optimizer: t.optim.Optimizer,
         training_args: dict,
-    ) -> dict:
+    ) -> dict: 
         ablation_loss = super().run_train_step(
             base_input, ablation_input, loss_fn, optimizer
         )["iit_loss"]
         # !!! Second forward pass
         # add probe losses and behavior loss
-        probe_losses = []
         probe_optimizer.zero_grad()
         for p in probes.values():
             p.train()
 
         base_x, base_y, base_intermediate_vars = base_input
         out, cache = self.ll_model.run_with_cache(base_x)
-        probe_loss = 0
+        probe_loss = t.zeros(1)
         for hl_node_name in probes.keys():
             gt = self.hl_model.get_idx_to_intermediate(hl_node_name)(
                 base_intermediate_vars
@@ -82,21 +80,27 @@ class IITProbeSequentialPair(IITModelPair):
 
     def train(
         self,
-        dataset: IITDataset,
-        test_dataset: IITDataset,
+        train_set: IITDataset,
+        test_set: IITDataset,
         epochs: int = 1000,
         use_wandb: bool = False,
+        wandb_name_suffix: str = "",
     ) -> None:
         training_args = self.training_args
         print(f"{training_args=}")
 
         # add to make probes
-        input_shape = (dataset[0][0][0]).unsqueeze(0).shape
+        input_shape = (train_set[0][0][0]).unsqueeze(0).shape
         with t.no_grad():
             probes = construct_probes(self, input_shape)
             print("made probes", [(k, p.weight.shape) for k, p in probes.items()])
 
-        loader, test_loader = self.make_loaders(dataset, test_dataset)
+        loader, test_loader = self.make_loaders(
+            train_set, 
+            test_set, 
+            training_args["batch_size"],
+            training_args["num_workers"]
+            )
         params = list(self.ll_model.parameters())
         for p in probes.values():
             params += list(p.parameters())
@@ -163,6 +167,7 @@ class IITProbeSequentialPair(IITModelPair):
                     test_behavior_losses.append(behavior_loss.item())
                     behavior_accuracies.append(behavior_accuracy.item())
 
+                    probe_loss = t.zeros(1)
                     for hl_node_name in probes.keys():
                         gt = self.hl_model.get_idx_to_intermediate(hl_node_name)(
                             base_intermediate_vars

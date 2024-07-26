@@ -1,3 +1,5 @@
+from typing import Iterator
+
 from enum import Enum
 import numpy as np
 
@@ -15,10 +17,10 @@ class MetricStore:
         self._store = []
         assert self.type in MetricType, f"Invalid metric type {self.type}"
 
-    def append(self, metric: float) -> None:
+    def append(self, metric: float | list) -> None:
         self._store.append(metric)
 
-    def get_value(self) -> None | float:
+    def get_value(self) -> None | float | list:
         if len(self._store) == 0:
             return None
         if self.type == MetricType.ACCURACY:
@@ -64,7 +66,7 @@ class MetricStoreCollection:
     def __init__(self, list_of_metric_stores: list[MetricStore]):
         self.metrics = list_of_metric_stores
 
-    def update(self, metrics: dict[str, float]) -> None:
+    def update(self, metrics: dict[str, float | list]) -> None:
         for k, v in metrics.items():
             key_found = False
             for metric in self.metrics:
@@ -94,3 +96,6 @@ class MetricStoreCollection:
 
     def to_dict(self) -> dict:
         return {metric.get_name(): metric.get_value() for metric in self.metrics}
+
+    def __iter__(self) -> Iterator[MetricStore]:
+        return iter(self.metrics)

@@ -1,9 +1,9 @@
-from typing import Callable
+from typing import Callable, Optional
 
 import numpy as np
 import torch as t
 from torch import Tensor
-from transformer_lens.hook_points import HookedRootModule
+from transformer_lens.hook_points import HookedRootModule #type: ignore
 
 from iit.model_pairs.strict_iit_model_pair import StrictIITModelPair
 from iit.model_pairs.ll_model import LLModel
@@ -30,13 +30,14 @@ class IOI_ModelPair(StrictIITModelPair):
         }
         self.training_args = {**default_training_args, **self.training_args}
         self.next_token = self.training_args["next_token"]
+        self.__loss_fn: Optional[Callable[[Tensor, Tensor], Tensor]] = None
 
     @property
     def loss_fn(self) -> Callable[[Tensor, Tensor], Tensor]:
-        if hasattr(self, "__loss_fn"):
+        if self.__loss_fn is not None:
             return self.__loss_fn
 
-        def per_token_weighted_cross_entropy(output, target):
+        def per_token_weighted_cross_entropy(output: Tensor, target: Tensor) -> Tensor:
             if target.shape == output.shape:
                 target = target.argmax(dim=-1) # convert one-hot to index for cross_entropy
             if len(output.shape) == 2:
@@ -57,7 +58,7 @@ class IOI_ModelPair(StrictIITModelPair):
         return self.__loss_fn
 
     @staticmethod
-    def get_label_idxs() -> index.Index:
+    def get_label_idxs() -> index.TorchIndex:
         return index.Ix[:, -1]
 
     @staticmethod
@@ -106,8 +107,8 @@ class IOI_ModelPair(StrictIITModelPair):
             # To handle the case when labels are one-hot
             hl_output = t.argmax(hl_output, dim=-1)
         top1 = t.argmax(ll_output, dim=-1)
-        accuracy = (top1[:, -1] == hl_output[:, -1]).float().mean()
-        IIA = accuracy.item()
+        accuracy = (top1[:, -1] == hl_output[:, -1]).float().mean().item()
+        IIA = accuracy
 
         # compute behavioral accuracy
         base_x, base_y = base_input[0:2]
@@ -159,7 +160,7 @@ class IOI_ModelPair(StrictIITModelPair):
 
     @staticmethod
     def _check_early_stop_fn(
-        test_metrics: list[MetricStore],
+        test_metrics: MetricStoreCollection,
         verbose: bool = False,
         non_ioi_thresh: float = 0.65,
         use_per_token_check: bool = False,
@@ -169,14 +170,20 @@ class IOI_ModelPair(StrictIITModelPair):
         """
         print_if_verbose = lambda x: print(x) if verbose else None  # noqa: E731
         for metric in test_metrics:
-            if metric.get_name() == "val/IIA" and metric.get_value() < 100:
-                print_if_verbose(f"IIA is not enough: {metric.get_value()}")
-                return False
-            elif metric.get_name() == "val/strict_accuracy" and metric.get_value() < 100:
-                print_if_verbose(f"strict_accuracy is not enough: {metric.get_value()}")
-                return False
+            if metric.get_name() == "val/IIA":
+                val = metric.get_value()
+                if (isinstance(val, float) and val < 100) or isinstance(val, type(None)):
+                    print_if_verbose(f"IIA is not enough: {metric.get_value()}")
+                    return False
+            elif metric.get_name() == "val/strict_accuracy":
+                val = metric.get_value()
+                if (isinstance(val, float) and val < 100) or isinstance(val, type(None)):
+                    print_if_verbose(f"strict_accuracy is not enough: {metric.get_value()}")
+                    return False
             elif metric.get_name() == "val/per_token_accuracy":
                 per_toke_acc = metric.get_value()
+                if not isinstance(per_toke_acc, list):
+                    per_toke_acc = [per_toke_acc,]
                 if per_toke_acc[-1] < 1:
                     print_if_verbose(
                         f"per_token_acc at IOI index is not enough: {per_toke_acc[-1]}"
@@ -205,16 +212,12 @@ class IOI_ModelPair(StrictIITModelPair):
                             return False
         return True
 
-    def _check_early_stop_condition(
-        self,
-        *args,
-        **kwargs,
-    ) -> bool:
+    def _check_early_stop_condition(self, test_metrics: MetricStoreCollection) -> bool:
         if not self.training_args["next_token"]:
-            return super()._check_early_stop_condition(*args, **kwargs)
+            return super()._check_early_stop_condition(test_metrics)
+        
         return self._check_early_stop_fn(
-            *args,
-            **kwargs,
-            non_ioi_thresh=self.training_args["non_ioi_thresh"],
-            use_per_token_check=self.training_args["use_per_token_check"],
-        )
+                test_metrics,
+                non_ioi_thresh=self.training_args["non_ioi_thresh"],
+                use_per_token_check=self.training_args["use_per_token_check"],
+            )

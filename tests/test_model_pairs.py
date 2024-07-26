@@ -6,7 +6,7 @@ import iit.utils.index as index
 from iit.model_pairs.ll_model import LLModel
 import torch
 
-def test_model_pair_gradients():
+def get_test_model_pair_ingredients():
     ll_model = LLModel(cfg={
         'n_layers': 4,
         'd_model': 32, 
@@ -30,13 +30,18 @@ def test_model_pair_gradients():
     corr = Correspondence()
     hook_point = 'blocks.1.attn.hook_z'
     hook_idx = index.Ix[:, :, 0]
-    hook_idx_complement = index.Ix[:, :, 1:]
-    prev_hooks = ['blocks.0.attn.hook_z', 'blocks.0.mlp.hook_post']
-    next_hooks = ['blocks.2.attn.hook_z', 'blocks.3.attn.hook_z', 'blocks.1.mlp.hook_post', 'blocks.2.mlp.hook_post', 'blocks.3.mlp.hook_post']
     corr.update({
             HLNode(hook_point, -1, index=hook_idx) : [LLNode(hook_point, index=hook_idx)],
         }
     )
+    return ll_model, hl_model, corr, hook_point, hook_idx
+
+def test_model_pair_gradients():
+    ll_model, hl_model, corr, hook_point, hook_idx = get_test_model_pair_ingredients()
+    
+    hook_idx_complement = index.Ix[:, :, 1:]
+    prev_hooks = ['blocks.0.attn.hook_z', 'blocks.0.mlp.hook_post']
+    next_hooks = ['blocks.2.attn.hook_z', 'blocks.3.attn.hook_z', 'blocks.1.mlp.hook_post', 'blocks.2.mlp.hook_post', 'blocks.3.mlp.hook_post']
 
     model_pair = CachingModelPair(ll_model=ll_model, hl_model=hl_model, corr=corr)
 

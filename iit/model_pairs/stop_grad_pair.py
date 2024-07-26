@@ -2,8 +2,8 @@ from typing import Any, Callable
 
 from torch import Tensor
 import torch
-from transformer_lens.hook_points import HookPoint, HookedRootModule
-from transformer_lens import HookedTransformer
+from transformer_lens.hook_points import HookPoint, HookedRootModule #type: ignore
+from transformer_lens import HookedTransformer #type: ignore
 
 from iit.model_pairs.freeze_model_pair import FreezedModelPair
 from iit.model_pairs.ll_model import LLModel
@@ -66,8 +66,8 @@ class StopGradHookedModel:
 
         return hook_fn
 
-    def make_zero_grad_hook(self, ll_node: LLNode) -> Callable[[Tensor, HookPoint], Tensor]:
-        def hook_fn(grad: Tensor, hook: HookPoint) -> Tensor:
+    def make_zero_grad_hook(self, ll_node: LLNode) -> Callable[[Tensor, HookPoint], list[Tensor]]:
+        def hook_fn(grad: Tensor, hook: HookPoint) -> list[Tensor]:
             act_idx = ll_node.get_index()
             ori_grad_shape = grad.shape
             grad[act_idx] = torch.zeros_like(grad[act_idx])
@@ -143,7 +143,7 @@ class StopGradModelPair(FreezedModelPair):
             post_nodes_not_in_circuit,
             scale=training_args["scale"],
             use_forward_hooks=training_args["use_ln_hooks"],
-        )
+        ) #type: ignore
         self.wandb_method = "stop grads"
 
         # TODO: test another part of the model and see if the gradient changes after registering the hook
