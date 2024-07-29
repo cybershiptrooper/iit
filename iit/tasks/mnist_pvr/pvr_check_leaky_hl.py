@@ -5,7 +5,8 @@ from transformer_lens.hook_points import HookedRootModule, HookPoint
 from iit.utils.config import DEVICE
 from .utils import MNIST_CLASS_MAP
 from iit.utils.index import Ix
-from iit.utils.nodes import HLNode, LLNode
+from iit.utils.nodes import HLNode, LLNode, HookName
+from iit.utils.correspondence import Correspondence
 
 
 class MNIST_PVR_Leaky_HL(HookedRootModule):
@@ -21,7 +22,7 @@ class MNIST_PVR_Leaky_HL(HookedRootModule):
         for i in ["tl", "tr", "bl", "br"]:
             for j in ["tl", "tr", "bl", "br"]:
                 if i != j:
-                    hl_node = HLNode(hook_str.format(i, j), 10, None)
+                    hl_node = HLNode(hook_str.format(i, j), 10, Ix[[None]])
                     self.leaky_hooks[hl_node] = HookPoint()
                     setattr(
                         self, hl_node.name, self.leaky_hooks[hl_node]
@@ -70,7 +71,7 @@ class MNIST_PVR_Leaky_HL(HookedRootModule):
 hl = MNIST_PVR_Leaky_HL().to(DEVICE)
 
 
-def get_corr(mode: str, hook_point: str, model: HookedRootModule, input_shape: tuple[int, int, int, int]) -> dict:
+def get_corr(mode: str, hook_point: str, model: HookedRootModule, input_shape: tuple[int, int, int, int]) -> Correspondence:
     with t.no_grad():
         out, cache = model.run_with_cache(t.zeros(input_shape, device=DEVICE))
         input_shape = cache[hook_point].shape
@@ -106,5 +107,5 @@ def get_corr(mode: str, hook_point: str, model: HookedRootModule, input_shape: t
                 corr[k] = {LLNode(name=hook_point, index=br_idx)}
             else:
                 print(f"!!!!!! Skipping {k}")
-        return corr
+        return Correspondence(corr)
     raise NotImplementedError(mode)

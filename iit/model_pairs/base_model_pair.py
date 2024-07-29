@@ -75,7 +75,7 @@ class BaseModelPair(ABC):
         base_input: tuple[Tensor, Tensor, Tensor],
         ablation_input: tuple[Tensor, Tensor, Tensor],
         hl_node: HLNode,
-        verbose=False
+        verbose: bool = False
     ) -> tuple[Tensor, Tensor]:
         ablation_x, ablation_y = ablation_input[0:2]
         base_x, base_y = base_input[0:2]
@@ -285,7 +285,7 @@ class BaseModelPair(ABC):
         test_dataset: IITDataset,
         batch_size : int,
         num_workers : int,
-    ):
+    ) -> tuple[DataLoader, DataLoader]:
         loader = dataset.make_loader(batch_size, num_workers)
         test_loader = test_dataset.make_loader(batch_size, num_workers)
         return loader, test_loader

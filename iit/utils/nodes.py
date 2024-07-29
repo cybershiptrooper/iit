@@ -16,7 +16,7 @@ class HLNode:
     def __hash__(self) -> int:
         return hash(self.name)
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         if isinstance(other, HLNode):
             return self.name == other.name
         elif isinstance(other, str):
@@ -36,7 +36,7 @@ class LLNode:
     index: TorchIndex = Ix[[None]]
     subspace: Optional[t.Tensor] = None
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, LLNode) and dataclasses.astuple(
             self
         ) == dataclasses.astuple(other)

@@ -1,8 +1,12 @@
+from transformer_lens.hook_points import HookedRootModule # type: ignore
+
 from .mnist_pvr.dataset import ImagePVRDataset
 from .mnist_pvr.utils import make_mnist_dataset
 from .mnist_pvr.get_alignment import get_alignment as get_mnist_pvr_corr
 from iit.utils.iit_dataset import IITDataset
 from iit.utils.correspondence import Correspondence
+from iit.utils.wrapper import HookedModuleWrapper
+from iit.tasks.hl_model import HLModel
 
 
 def get_dataset(
@@ -39,7 +43,7 @@ def get_dataset(
     return IITDataset(train_set, train_set), IITDataset(test_set, test_set)
 
 
-def get_alignment(task: str, config: dict = {}) -> Correspondence:
+def get_alignment(task: str, config: dict = {}) -> tuple[HookedModuleWrapper | None, HookedRootModule | None, Correspondence]:
     if "pvr" in task:
         default_config = {
             "mode": "q",
@@ -51,13 +55,8 @@ def get_alignment(task: str, config: dict = {}) -> Correspondence:
         return get_mnist_pvr_corr(default_config, task)
     if "ioi" in task:
         from .ioi import corr
-        return corr
+        return None, None, corr
     raise ValueError(f"Unknown task {task}")
 
-def get_default_corr(task: str) -> dict:
-    if "pvr" in task:
-        return get_alignment(task)[-1]
-    elif "ioi" in task:
-        from .ioi import corr_dict
-        return corr_dict
-    raise ValueError(f"Unknown task {task}")
+def get_default_corr(task: str) -> Correspondence:
+    return get_alignment(task)[-1]

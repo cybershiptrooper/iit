@@ -70,7 +70,7 @@ corr = Correspondence.make_corr_from_dict(
 
 
 def make_ll_edges(corr: Correspondence) -> list[tuple[LLNode, LLNode]]:
-    def expand_nodes(ll_node: LLNode):
+    def expand_nodes(ll_node: LLNode) -> list[LLNode]:
         ll_nodes_expanded = []
         for head_index in range(n_heads):
             idx = Ix[:, :, head_index, :]
@@ -85,8 +85,8 @@ def make_ll_edges(corr: Correspondence) -> list[tuple[LLNode, LLNode]]:
         hl_node_to = HLNode(edge[1], -1)
         ll_nodes_from = corr[hl_node_from]  # set of LLNodes
         ll_nodes_to = corr[hl_node_to]
-        additional_from_nodes = set()
-        remove_from_nodes = set()
+        additional_from_nodes: set[LLNode] = set()
+        remove_from_nodes: set[LLNode] = set()
         for ll_node_from in ll_nodes_from:
             if "attn" in ll_node_from.name:
                 ll_nodes_from_expanded = expand_nodes(ll_node_from)
@@ -98,8 +98,8 @@ def make_ll_edges(corr: Correspondence) -> list[tuple[LLNode, LLNode]]:
         ll_nodes_from = ll_nodes_from | additional_from_nodes
         ll_nodes_from = ll_nodes_from - remove_from_nodes
 
-        additional_to_nodes = set()
-        remove_to_nodes = set()
+        additional_to_nodes: set[LLNode] = set()
+        remove_to_nodes: set[LLNode] = set()
         for ll_node_to in ll_nodes_to:
             if "attn" in ll_node_to.name:
                 ll_nodes_to_expanded = expand_nodes(ll_node_to)

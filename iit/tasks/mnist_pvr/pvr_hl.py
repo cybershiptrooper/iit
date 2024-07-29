@@ -7,6 +7,7 @@ from iit.utils.nodes import HLNode, LLNode
 from iit.utils.index import Ix
 from .utils import MNIST_CLASS_MAP
 from iit.tasks.hl_model import HLModel
+from iit.utils.correspondence import Correspondence
 
 class MNIST_PVR_HL(HookedRootModule, HLModel):
     """
@@ -62,14 +63,14 @@ class MNIST_PVR_HL(HookedRootModule, HLModel):
 
 # %%
 hl_nodes = {
-    "hook_tl": HLNode("hook_tl", 10, None),
-    "hook_tr": HLNode("hook_tr", 10, None),
-    "hook_bl": HLNode("hook_bl", 10, None),
-    "hook_br": HLNode("hook_br", 10, None),
+    "hook_tl": HLNode("hook_tl", 10, Ix[[None]]),
+    "hook_tr": HLNode("hook_tr", 10, Ix[[None]]),
+    "hook_bl": HLNode("hook_bl", 10, Ix[[None]]),
+    "hook_br": HLNode("hook_br", 10, Ix[[None]]),
 }
 
 
-def get_corr(mode: str, hook_point: str, model: HookedRootModule, input_shape: tuple[int, int, int, int]) -> dict:
+def get_corr(mode: str, hook_point: str, model: HookedRootModule, input_shape: tuple[int, int, int, int]) -> Correspondence:
     with t.no_grad():
         out, cache = model.run_with_cache(t.zeros(input_shape).to(DEVICE))
         # print(out.shape)
@@ -135,4 +136,4 @@ def get_corr(mode: str, hook_point: str, model: HookedRootModule, input_shape: t
                 )
             },
         }
-    return corr
+    return Correspondence(corr)

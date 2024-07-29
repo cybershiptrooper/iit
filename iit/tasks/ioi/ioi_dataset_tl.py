@@ -9,7 +9,7 @@ import random
 from typing import Dict, List, Optional
 
 import einops
-import torch
+import torch as t
 from torch import Tensor
 import tqdm.auto as tqdm
 from datasets import load_dataset
@@ -17,6 +17,8 @@ from torch.utils.data import DataLoader, Dataset
 from transformers import AutoTokenizer
 
 from transformer_lens import utils, HookedTransformer
+from iit.utils.config import DEVICE
+from iit.utils.iit_dataset import dataset_len
 
 
 # %%
@@ -107,7 +109,7 @@ DATASET_LOADERS = [
 
 
 # %%
-@torch.inference_mode()
+@t.inference_mode()
 def evaluate_on_dataset(
     model: HookedTransformer, 
     data_loader: DataLoader, 
@@ -126,7 +128,7 @@ def evaluate_on_dataset(
 
 
 # %%
-@torch.inference_mode()
+@t.inference_mode()
 def induction_loss(
     model: HookedTransformer, 
     tokenizer: Optional[AutoTokenizer] = None,
@@ -142,7 +144,7 @@ def induction_loss(
     whose default is True unless specified otherwise), which is useful to give models a resting position, and sometimes models were trained with this.
     """
     # Make the repeated sequence
-    first_half_tokens = torch.randint(100, 20000, (batch_size, subseq_len)).to(device)
+    first_half_tokens = t.randint(100, 20000, (batch_size, subseq_len)).to(device)
     repeated_tokens = einops.repeat(first_half_tokens, "b p -> b (2 p)")
 
     # Use the provided prepend_bos as an override if it's not None;
@@ -166,7 +168,7 @@ def induction_loss(
 
 
 # %%
-@torch.inference_mode()
+@t.inference_mode()
 def evaluate(
     model: HookedTransformer, 
     truncate: int = 100, 
@@ -226,9 +228,11 @@ class IOIDataset(Dataset):
         symmetric: bool = False,
         prepend_bos: bool = True,
         seed: int = 42,
+        device: t.device = DEVICE,
     ):
         self.tokenizer = tokenizer
         self.prepend_bos = prepend_bos
+        self.device = device
 
         self.templates = (
             templates if templates is not None else self.get_default_templates()
@@ -244,7 +248,7 @@ class IOIDataset(Dataset):
             # If symmetric, get_sample will return two samples
             self.samples.extend(self.get_sample(symmetric=symmetric))
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.samples)
 
     def __getitem__(self, idx: int, pad_token: bool = False) -> Dict[str, Tensor]:
@@ -258,10 +262,10 @@ class IOIDataset(Dataset):
         idx_to_ablate = len(prompt) - 2
 
         return {
-            "prompt": torch.LongTensor(prompt),
-            "IO": torch.LongTensor(self.tokenizer.encode(sample["IO"])),
-            "S": torch.LongTensor(self.tokenizer.encode(sample["S"])),
-            "idx_to_ablate": idx_to_ablate,
+            "prompt": t.LongTensor(prompt),
+            "IO": t.LongTensor(self.tokenizer.encode(sample["IO"])),
+            "S": t.LongTensor(self.tokenizer.encode(sample["S"])),
+            "idx_to_ablate": t.LongTensor((idx_to_ablate,)),
         }
 
     def get_sample(self, symmetric: bool = False) -> List[Dict[str, str]]:
@@ -308,7 +312,7 @@ class IOIDataset(Dataset):
         }
 
 
-@torch.inference_mode()
+@t.inference_mode()
 def ioi_eval(
     model: HookedTransformer, 
     dataset: Optional[Dataset] = None, 
@@ -336,9 +340,9 @@ def ioi_eval(
     if dataset is None:
         dataset = IOIDataset(tokenizer, num_samples=num_samples, symmetric=symmetric)
 
-    def collate(samples):
+    def collate(samples: list[dict]) -> dict: #type: ignore 
         prompts = [sample["prompt"] for sample in samples]
-        padded_prompts = torch.nn.utils.rnn.pad_sequence(prompts, batch_first=True)
+        padded_prompts = t.nn.utils.rnn.pad_sequence(prompts, batch_first=True)
         return {
             "prompt": padded_prompts,
             "IO": [sample["IO"] for sample in samples],
@@ -366,7 +370,7 @@ def ioi_eval(
             s = s[:min_len]
 
             # Remove identical prefixes
-            start_idx = torch.where(io != s)[0][0]
+            start_idx = t.where(io != s)[0][0]
             io = io[start_idx]
             s = s[start_idx]
             logit_idx = prefix_length + start_idx - 1
@@ -383,21 +387,16 @@ def ioi_eval(
             total_logit_diff += logit_diff.item()
 
     return {
-        "Logit Difference": total_logit_diff / len(dataset),
-        "Accuracy": total_correct / len(dataset),
+        "Logit Difference": total_logit_diff / dataset_len(dataset),
+        "Accuracy": total_correct / dataset_len(dataset),
     }
 
-from iit.utils.config import DEVICE
 class IOIDatasetWrapper(IOIDataset):
-    def __init__(self, *args, 
-                 device=DEVICE, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.device = device
         
     def get_inputs(self) -> Tensor:
         items = [self.__getitem__(i) for i in range(len(self))]
         inputs = [item[0] for item in items]
-        inputs_tensor = torch.stack(inputs)
+        inputs_tensor = t.stack(inputs)
         return inputs_tensor
     
     def get_targets(self) -> list[Tensor]:
@@ -405,10 +404,10 @@ class IOIDatasetWrapper(IOIDataset):
         targets = [item[1] for item in items]
         return targets
     
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor, Tensor]:
+    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor, Tensor]: # type: ignore 
         x = super().__getitem__(idx)
         prompt = x['prompt']
-        y = list(prompt[1:])
-        y = torch.nn.functional.one_hot(torch.tensor(y), num_classes=self.tokenizer.vocab_size).float()
+        y_list = list(prompt[1:])
+        y = t.nn.functional.one_hot(t.tensor(y_list), num_classes=self.tokenizer.vocab_size).float()
         return (x['prompt'][:-1].to(self.device), (y).to(self.device), (x['IO']).to(self.device))
     

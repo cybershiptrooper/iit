@@ -14,7 +14,7 @@ class LLModel:
     """
     def __init__(self, 
                  model: HookedRootModule = None,
-                 cfg: dict = None,
+                 cfg: Optional[dict] = None,
                  detach_while_caching: bool = True
                  ):
         assert model is not None or cfg is not None, "Either model or cfg must be provided."
@@ -58,7 +58,7 @@ class LLModel:
             names_filter = lambda name: name in filter_list
         self.is_caching = True
 
-        def save_hook(tensor: t.Tensor, hook: HookPoint):
+        def save_hook(tensor: t.Tensor, hook: HookPoint) -> None:
             if self.detach_while_caching or (not (tensor.requires_grad and self.model.training)):
                 # detach if the tensor requires grad and the model is not training
                 tensor_to_cache = tensor.detach()
@@ -77,7 +77,7 @@ class LLModel:
             else:
                 cache[hook.name] = tensor_to_cache.to(device)
 
-        def save_hook_back(tensor, hook):
+        def save_hook_back(tensor: Tensor, hook: HookPoint) -> None:
             # we always detach here as loss.backward() was already called 
             # and will throw an error if we don't do this
             tensor_to_cache = tensor.detach() 
@@ -97,12 +97,12 @@ class LLModel:
         return cache, fwd_hooks, bwd_hooks
     
     @classmethod
-    def make_from_hooked_transformer(cls, hooked_transformer: HookedTransformer, detach_while_caching: bool):
+    def make_from_hooked_transformer(cls, hooked_transformer: HookedTransformer, detach_while_caching: bool) -> "LLModel":
         ll_model = cls(hooked_transformer, detach_while_caching=detach_while_caching)
         ll_model.load_state_dict(hooked_transformer.state_dict())
         return ll_model
     
-    def run_with_cache(
+    def run_with_cache( # type: ignore
         self,
         *model_args,
         names_filter: Optional[NamesFilter] = None,

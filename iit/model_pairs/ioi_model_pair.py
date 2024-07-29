@@ -168,7 +168,7 @@ class IOI_ModelPair(StrictIITModelPair):
         """
         Early stopping for IOI
         """
-        print_if_verbose = lambda x: print(x) if verbose else None  # noqa: E731
+        print_if_verbose: Callable[[t.Any], None] = lambda x: print(x) if verbose else None  # noqa: E731
         for metric in test_metrics:
             if metric.get_name() == "val/IIA":
                 val = metric.get_value()

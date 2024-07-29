@@ -41,7 +41,7 @@ class FreezedModelPair(IITBehaviorModelPair):
                     
     def step_on_loss(self, loss: t.Tensor, optimizer: t.optim.Optimizer) -> None:
         optimizer.zero_grad()
-        loss.backward()
+        loss.backward() # type: ignore
         self.zero_grad_for_not_in_circuit() # else, no need as we do it via hooks
         self.clip_grad_fn()
         optimizer.step()

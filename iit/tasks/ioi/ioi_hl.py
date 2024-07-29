@@ -1,3 +1,5 @@
+from typing import Callable
+
 import torch as t
 from torch import Tensor
 from transformer_lens.hook_points import HookedRootModule, HookPoint
@@ -41,8 +43,8 @@ class SInhibitionHead(t.nn.Module):
         # extract token positions we care about from duplicate
         duplicate_pos_at_duplicates = t.where(duplicate != -1)
         duplicate_pos_at_tokens = duplicate[duplicate_pos_at_duplicates[0], duplicate_pos_at_duplicates[1]]
-        duplicate_pos_at_tokens = (duplicate_pos_at_duplicates[0], duplicate_pos_at_tokens)
-        duplicate_tokens = tokens[duplicate_pos_at_tokens]
+        duplicate_pos_at_tokens_tup = (duplicate_pos_at_duplicates[0], duplicate_pos_at_tokens)
+        duplicate_tokens = tokens[duplicate_pos_at_tokens_tup]
         assert ret[duplicate_pos_at_duplicates].abs().sum() == 0 # sanity check, to make sure we're not overwriting anything
         # replace ret with the duplicated tokens
         ret[duplicate_pos_at_duplicates] = duplicate_tokens
@@ -103,8 +105,8 @@ class IOI_HL(HookedRootModule, HLModel):
     def is_categorical(self) -> bool:
         return True
     
-    def forward(self, args, verbose: bool = False) -> Tensor:
-        show = print if verbose else lambda *args, **kwargs: None
+    def forward(self, args: Tensor | tuple, verbose: bool = False) -> Tensor:
+        show: Callable[[t.Any], None] = lambda *args, **kwargs: print(*args, **kwargs) if verbose else None
         if isinstance(args, Tensor):
             input = args
         elif isinstance(args, tuple):

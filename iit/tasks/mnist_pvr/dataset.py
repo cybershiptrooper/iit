@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch as t
 from torch import Tensor
 import torchvision
@@ -6,7 +8,7 @@ from torch.utils.data import Dataset
 from PIL import Image, ImageOps
 import numpy as np
 from .utils import *
-from iit.utils.index import Ix, Index
+from iit.utils.index import Ix, TorchIndex
 from iit.utils.nodes import HLNode
 
 
@@ -33,7 +35,7 @@ class ImagePVRDataset(Dataset):
         self.seed = seed
         self.rng = np.random.default_rng(seed)
         assert all(v in {1, 2, 3} for v in class_map.values())
-        self.cache = {}
+        self.cache: dict[int, tuple[Tensor, Tensor, Tensor]] = {}
         self.use_cache = False
         self.length = length
         self.iid = iid
@@ -45,7 +47,7 @@ class ImagePVRDataset(Dataset):
             assert (
                 len(self.base_dataset) >= 4 * self.length
             ), "Dataset is too small for non-iid mode"
-        self.input_shape = None
+        self.input_shape: Optional[t.Size] = None
         self.set_input_shape(self[0][0].unsqueeze(0).shape)
 
     def set_input_shape(self, shape: t.Size) -> None:
@@ -74,7 +76,7 @@ class ImagePVRDataset(Dataset):
         """
         Returns the label for the new image based on the intermediate variables.
         """
-        pointer = self.class_map[intermediate_vars[0].item()]
+        pointer = self.class_map[int(intermediate_vars[0].item())]
         new_label = t.tensor(intermediate_vars[pointer].item())
         return new_label
 
@@ -106,7 +108,7 @@ class ImagePVRDataset(Dataset):
             ]
             # print(f"Padding images by {self.pad_size}")
         new_image = self.concatenate_2x2(images)
-        new_image = torchvision.transforms.functional.to_tensor(new_image)
+        new_image_output = torchvision.transforms.functional.to_tensor(new_image)
 
         base_label = base_items[0][1]
         pointer = self.class_map[base_label]
@@ -116,7 +118,7 @@ class ImagePVRDataset(Dataset):
         assert (
             new_label == new_label_from_func
         ), f"new_label: {new_label}; new_label_from_func: {new_label_from_func}"
-        ret = new_image, new_label, intermediate_vars
+        ret = new_image_output, new_label, intermediate_vars
         if self.use_cache:
             self.cache[index] = ret
         return ret
@@ -128,7 +130,7 @@ class ImagePVRDataset(Dataset):
         self,
         input: Tensor,
         intermediate_var: Tensor,
-        idx: Index,
+        idx: TorchIndex,
         idx_to_intermediate: int,
     ) -> tuple[Tensor, Tensor, Tensor]:
         """
@@ -177,9 +179,12 @@ class ImagePVRDataset(Dataset):
             new_labels.append(new_label)
         return new_batch, new_labels, new_intermediate_vars
 
-    def get_idx_and_intermediate(self, hl_node: HLNode) -> tuple[Index, int]:
+    def get_idx_and_intermediate(self, hl_node: HLNode) -> tuple[TorchIndex, int]:
         input_shape = self.get_input_shape()
-        width, height = input_shape[2], input_shape[3]
+        if isinstance(input_shape, t.Size):
+            width, height = input_shape[2], input_shape[3]
+        else:
+            raise ValueError("Cannot obtain input shape from base dataset.")
         if "hook_tl" in hl_node.name:
             idx = Ix[None, : width // 2, : height // 2]
             idx_to_intermediate = 0

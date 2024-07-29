@@ -12,11 +12,11 @@ from iit.tasks.ioi import (
     suffixes
 )
 from iit.utils.correspondence import Correspondence
-from argparse import Namespace
+from iit.utils.argparsing import IOIArgParseNamespace
 
 
-def train_ioi(args: Namespace) -> IOI_ModelPair:
-    device = args.device
+def train_ioi(args: IOIArgParseNamespace) -> IOI_ModelPair:
+    device = t.device(args.device)
     num_samples = args.num_samples
     epochs = args.epochs
     use_wandb = args.use_wandb
@@ -45,7 +45,7 @@ def train_ioi(args: Namespace) -> IOI_ModelPair:
     ll_model = HookedTransformer(ll_cfg).to(device)
     print("making ioi dataset and hl")
     ioi_dataset, hl_model = make_ioi_dataset_and_hl(
-        num_samples, ll_model, NAMES, device=args.device, verbose=True
+        num_samples, ll_model, NAMES, device=device, verbose=True
     )
     print("making IIT dataset")
     train_ioi_dataset, test_ioi_dataset = train_test_split(

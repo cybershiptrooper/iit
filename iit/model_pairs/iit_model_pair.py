@@ -51,7 +51,7 @@ class IITModelPair(BaseModelPair):
     @property
     def loss_fn(self) -> Callable[[Tensor, Tensor], Tensor]:
         # TODO: make this more general
-        def class_loss(output, target):
+        def class_loss(output: Tensor, target: Tensor) -> Tensor:
             # convert to (N, C, ...) if necessary
             if len(target.shape) == len(output.shape) and len(output.shape) > 2:
                 # convert target to float if necessary
@@ -122,6 +122,6 @@ class IITModelPair(BaseModelPair):
         loss = self.get_IIT_loss_over_batch(
             base_input, ablation_input, hl_node, loss_fn
         )
-        loss.backward()
+        loss.backward() # type: ignore
         optimizer.step()
         return {"train/iit_loss": loss.item()}

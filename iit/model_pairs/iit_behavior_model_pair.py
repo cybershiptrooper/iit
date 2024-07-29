@@ -61,7 +61,7 @@ class IITBehaviorModelPair(IITModelPair):
 
     def step_on_loss(self, loss: Tensor, optimizer: t.optim.Optimizer) -> None:
         optimizer.zero_grad()
-        loss.backward()
+        loss.backward() # type: ignore
         self.clip_grad_fn()
         optimizer.step()
 

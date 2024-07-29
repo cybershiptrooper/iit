@@ -22,17 +22,17 @@ def make_hook(corrupted_cache: ActivationCache, hook_name: str) -> Callable[[Ten
     return hook_fn
 
 
-def test_duplicate_head() -> Tensor:
+def test_duplicate_head() -> None:
     a = DuplicateHead()(Tensor([[3, 1, 4, 1, 5, 9, 2, 6, 5]]))
     assert a.equal(Tensor([[-1, -1, -1, 1, -1, -1, -1, -1, 4]]))
 
 
-def test_previous_head() -> Tensor:
+def test_previous_head() -> None:
     a = PreviousHead()(Tensor([[3, 1, 4, 1, 5, 9, 2, 6, 5]]))
     assert a.equal(Tensor([[-1, 3, 1, 4, 1, 5, 9, 2, 6]]))
 
 
-def test_s_inhibition_head() -> Tensor:
+def test_s_inhibition_head() -> None:
     a = SInhibitionHead()(
         Tensor([[3, 1, 4, 1, 5, 9, 2, 6, 5]]),
         Tensor([[-1, -1, -1, 1, -1, -1, -1, -1, 4]]),
