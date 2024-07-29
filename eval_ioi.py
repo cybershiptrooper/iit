@@ -1,4 +1,5 @@
 import argparse
+from iit.utils.argparsing import IOIArgParseNamespace
 from iit.utils.eval_scripts import eval_ioi
 import torch
 
@@ -45,4 +46,5 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    eval_ioi(args)
+    namespace = IOIArgParseNamespace(**vars(args))
+    eval_ioi(namespace)

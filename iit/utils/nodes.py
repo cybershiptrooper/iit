@@ -13,10 +13,6 @@ class HLNode:
     num_classes: int
     index: TorchIndex = Ix[[None]]
 
-    def __post_init__(self) -> None:
-        if self.index is None:
-            self.index = Ix[[None]]
-
     def __hash__(self) -> int:
         return hash(self.name)
 
@@ -37,12 +33,8 @@ class HLNode:
 @dataclass
 class LLNode:
     name: HookName
-    index: TorchIndex
+    index: TorchIndex = Ix[[None]]
     subspace: Optional[t.Tensor] = None
-
-    def __post_init__(self) -> None:
-        if self.index is None:
-            self.index = Ix[[None]]
 
     def __eq__(self, other) -> bool:
         return isinstance(other, LLNode) and dataclasses.astuple(
@@ -53,4 +45,6 @@ class LLNode:
         return hash(dataclasses.astuple(self))
 
     def get_index(self) -> tuple[slice]:
+        if self.index is None:
+            raise ValueError("Index is None, which should not happen after __post_init__. Perhaps you set it to None manually?")
         return self.index.as_index

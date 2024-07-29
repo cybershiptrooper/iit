@@ -24,9 +24,10 @@ from iit.utils.correspondence import Correspondence
 from iit.utils.iit_dataset import IITDataset
 from iit.utils.eval_datasets import IITUniqueDataset
 from iit.utils.io_scripts import load_files_from_wandb
+from iit.utils.argparsing import IOIArgParseNamespace
 
 
-def eval_ioi(args: argparse.ArgumentParser) -> None:
+def eval_ioi(args: IOIArgParseNamespace) -> None:
     weights = args.weights
     use_mean_cache = args.mean
     device = args.device
@@ -107,7 +108,6 @@ def eval_ioi(args: argparse.ArgumentParser) -> None:
         za_result_in_circuit,
         use_mean_cache=use_mean_cache,
     )
-    suffix = f"_{args.categorical_metric}"
     save_result(df, results_dir)
     with open(f"{results_dir}/metric_collection.log", "w") as f:
         f.write(str(metric_collection))

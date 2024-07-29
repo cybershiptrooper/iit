@@ -35,11 +35,14 @@ class TorchIndex:
             )
         )
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.hashable_tuple)
 
-    def __eq__(self, other: "TorchIndex") -> bool:
-        return self.hashable_tuple == other.hashable_tuple
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, TorchIndex):
+            return self.hashable_tuple == other.hashable_tuple
+        else:
+            return False
 
     def __repr__(self) -> str:
         ret = "["
@@ -63,8 +66,8 @@ class TorchIndex:
         ret += "]"
         return ret
 
-    def graphviz_index(self, use_actual_colon: bool = True) -> str:
-        return self.__repr__(use_actual_colon=use_actual_colon)
+    def graphviz_index(self) -> str:
+        return self.__repr__()
 
     def intersects(self, other: Optional["TorchIndex"]) -> bool:
         if other is None or self == Ix[[None]] or other == Ix[[None]]:

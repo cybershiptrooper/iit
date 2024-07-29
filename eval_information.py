@@ -7,6 +7,7 @@ from iit.tasks.task_loader import get_alignment, get_dataset
 import torch as t
 from tqdm import tqdm
 from iit.utils.plotter import plot_probe_stats
+from iit.utils.iit_dataset import IITDataset
 import os
 import wandb
 from datetime import datetime

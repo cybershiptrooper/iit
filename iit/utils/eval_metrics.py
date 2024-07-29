@@ -1,3 +1,5 @@
+from typing import Callable
+
 import torch as t
 from torch import Tensor
 import iit.utils.index as index
@@ -14,7 +16,7 @@ def kl_div(
         if b.shape == a.shape[:-1]:
             b_pmf = t.nn.functional.one_hot(b_pmf, num_classes=a_pmf.shape[-1]).float()
         b_pmf = b_pmf.float()
-    pmf_checker = lambda x: t.allclose(
+    pmf_checker: Callable[[Tensor], bool] = lambda x: t.allclose(
         x.sum(dim=-1), t.ones_like(x.sum(dim=-1))
     )
     if not pmf_checker(a_pmf):

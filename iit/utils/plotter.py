@@ -1,7 +1,8 @@
+from typing import Callable
+
 import matplotlib.pyplot as plt
 import numpy as np
 import wandb
-from PIL import Image
 from iit.model_pairs.base_model_pair import HLNode
 
 
@@ -14,13 +15,8 @@ def get_hookpoint_labels(hookpoints: list[str]) -> list[str]:
 
 def get_leaky_hlnode_labels(hl_nodes: list[str | HLNode]) -> list[str]:
     x_tick_string = """{} -> {}"""
-    if type(hl_nodes[0]) == HLNode:
-        hl_nodes = [i.name for i in hl_nodes]
-    elif type(hl_nodes[0]) != str:
-        raise ValueError(
-            f"hl_nodes must be a list of str or HLNode, got {type(hl_nodes[0])}"
-        )
-    return [x_tick_string.format(i.split("_")[1], i.split("_")[-1]) for i in hl_nodes]
+    hl_nodes_pass = [node if isinstance(node, str) else node.name for node in hl_nodes]
+    return [x_tick_string.format(i.split("_")[1], i.split("_")[-1]) for i in hl_nodes_pass]
 
 
 def plot_probe_stats(
@@ -32,7 +28,7 @@ def plot_probe_stats(
 ) -> None:
     # make arrays
     hookpoints = list(correctness_stats_per_layer.keys())
-    get_hl_nodes = lambda stats: list(stats[list(stats.keys())[0]]["probes"].keys())
+    get_hl_nodes: Callable[[dict], list] = lambda stats: list(stats[list(stats.keys())[0]]["probes"].keys())
     hl_nodes = get_hl_nodes(correctness_stats_per_layer)
     # correctness_loss = np.zeros((len(hookpoints), len(hl_nodes)))
     correctness_acc = np.zeros((len(hookpoints), len(hl_nodes)))
@@ -46,8 +42,8 @@ def plot_probe_stats(
     leaky_acc = np.zeros((len(hookpoints), len(hl_nodes)))
     leaky_hl_nodes = get_hl_nodes(leaky_stats_per_layer)
     leaky_accs_all = np.zeros((len(hookpoints), len(leaky_hl_nodes)))
-    get_idx = lambda name: hl_nodes.index("hook_{}".format(name))
-    reduction = (
+    get_idx: Callable[[str], int] = lambda name: hl_nodes.index("hook_{}".format(name))
+    reduction_function = (
         np.mean
         if reduction == "mean"
         else (
@@ -57,7 +53,7 @@ def plot_probe_stats(
         )
     )
     assert (
-        reduction is not None
+        reduction_function is not None
     ), f"reduction must be one of 'mean', 'max', or 'median', got {reduction}"
     for i, hookpoint in enumerate(hookpoints):
         accs = np.zeros((len(hl_nodes), len(hl_nodes)))
@@ -69,7 +65,7 @@ def plot_probe_stats(
             accs[get_idx(leaked_from), get_idx(leaked_to)] = acc
             leaky_accs_all[i, j] = acc
         # print(f"accs: {accs}")
-        accs_reduced = reduction(accs, axis=0)  # rows = leaked_from; cols = leaked_to
+        accs_reduced = reduction_function(accs, axis=0)  # rows = leaked_from; cols = leaked_to
         for j, _ in enumerate(hl_nodes):
             leaky_acc[i, j] = accs_reduced[j]
         # print(f"leaky_acc: {leaky_acc}")

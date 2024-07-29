@@ -1,15 +1,15 @@
 import os
 import json
-import argparse
 
 import torch as t
 import wandb
 
 from iit.tasks.task_loader import get_default_corr
 from iit.model_pairs.base_model_pair import BaseModelPair
+from iit.utils.argparsing import IOIArgParseNamespace
 
 
-def save_model(model_pair: BaseModelPair, args: argparse.ArgumentParser, task: str) -> None:
+def save_model(model_pair: BaseModelPair, args: IOIArgParseNamespace, task: str) -> None:
     """
     Folder structure:
     -ll_models
@@ -51,7 +51,7 @@ def save_model(model_pair: BaseModelPair, args: argparse.ArgumentParser, task: s
     with open(metrics_file, "w") as f:
         f.write(f"Epochs: {epochs}\n")
         early_stop_condition = model_pair._check_early_stop_condition(
-            model_pair.test_metrics.metrics
+            model_pair.test_metrics
         )
         f.write(f"Early stop: {early_stop_condition}\n")
         f.write("\n\n--------------------------------\n\n")

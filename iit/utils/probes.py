@@ -13,14 +13,14 @@ def construct_probe(
     high_level_node: HLNode,
     ll_nodes: set[LLNode],
     dummy_cache: dict[str, t.Tensor],
-    bias=False,
+    bias: bool = False,
 ) -> nn.Linear:
     """
     Makes a probe for a given high-level node, given the low-level model and nodes.
     """
     if len(ll_nodes) > 1:
         raise NotImplementedError  # raising as unsure about summing over multiple nodes
-    _get_hook_out_size = (
+    _get_hook_out_size: Callable[[dict[str, t.Tensor], LLNode], int] = (
         lambda dummy_cache, ll_node: dummy_cache[ll_node.name][ll_node.index.as_index]
         .flatten()
         .shape[0]
@@ -31,7 +31,7 @@ def construct_probe(
     return nn.Linear(size, high_level_node.num_classes, bias=bias).to(DEVICE)
 
 
-def construct_probes(model_pair: BaseModelPair, input_shape: tuple[int], bias: bool = False) -> dict[HLNode, nn.Linear]:
+def construct_probes(model_pair: BaseModelPair, input_shape: t.Size, bias: bool = False) -> dict[HLNode, nn.Linear]:
     probes = {}
     _, dummy_cache = model_pair.ll_model.run_with_cache(
         t.zeros(input_shape).to(DEVICE)
@@ -44,7 +44,7 @@ def construct_probes(model_pair: BaseModelPair, input_shape: tuple[int], bias: b
 
 def train_probes_on_model_pair(
     model_pair: BaseModelPair,
-    input_shape: str,
+    input_shape: t.Size,
     train_set: t.utils.data.Dataset,
     training_args: dict,
 ) -> dict[str, dict]:
@@ -56,8 +56,8 @@ def train_probes_on_model_pair(
 
     probe_optimizer = t.optim.Adam(params, lr=training_args["lr"])
     criterion = nn.CrossEntropyLoss()
-    probe_losses = {k: [] for k in probes.keys()}
-    probe_accuracies = {k: [] for k in probes.keys()}
+    probe_losses: dict[HLNode, list[Tensor]] = {k: [] for k in probes.keys()}
+    probe_accuracies: dict[HLNode, list[Tensor]] = {k: [] for k in probes.keys()}
     loader = t.utils.data.DataLoader(
         train_set,
         batch_size=training_args["batch_size"],
@@ -65,14 +65,14 @@ def train_probes_on_model_pair(
         num_workers=training_args["num_workers"],
     )
     for _ in tqdm(range(training_args["epochs"])):
-        probe_accuracy_run = {k: 0 for k in probes.keys()}
-        probe_loss_run = {k: 0 for k in probes.keys()}
+        probe_accuracy_run = {k: t.zeros(1) for k in probes.keys()}
+        probe_loss_run = {k: t.zeros(1) for k in probes.keys()}
         for x, y, int_vars in loader:
             probe_optimizer.zero_grad()
             x = x.to(DEVICE)
             y = y.to(DEVICE)
             out, cache = model_pair.ll_model.run_with_cache(x)
-            probe_loss = 0
+            probe_loss = t.zeros(1)
             for hl_node_name, probe in probes.items():
                 ll_nodes = model_pair.corr[hl_node_name]
                 gt = model_pair.hl_model.get_idx_to_intermediate(hl_node_name)(
@@ -92,7 +92,7 @@ def train_probes_on_model_pair(
                     probe_accuracy_run[hl_node_name] += (
                         (probe_out.argmax(1) == gt).float().mean().item()
                     )
-            probe_loss.backward()
+            probe_loss.backward() # type: ignore
             probe_optimizer.step()
         for k in probe_losses.keys():
             probe_losses[k].append(probe_loss_run[k] / len(loader))
@@ -106,13 +106,13 @@ def evaluate_probe(
         test_set: t.utils.data.Dataset, 
         criterion: Callable[[Tensor, Tensor], Tensor]
         ) -> dict[str, dict]:
-    probe_stats = {}
+    probe_stats: dict[str, dict] = {}
     probe_stats["test loss"] = {}
     probe_stats["test accuracy"] = {}
     for hl_node_name, probe in tqdm(probes.items(), desc="Evaluating probes"):
         probe.eval()
-        probe_loss = 0
-        probe_accuracy = 0
+        probe_loss = t.zeros(1)
+        probe_accuracy = t.zeros(1)
         loader = t.utils.data.DataLoader(
             test_set, batch_size=256, shuffle=True, num_workers=0
         )

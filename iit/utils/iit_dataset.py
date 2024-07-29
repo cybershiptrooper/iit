@@ -1,5 +1,5 @@
 # import everything relevant
-from typing import Optional
+from typing import Optional, cast, Sized, Callable
 import numpy as np
 from torch.utils.data import Dataset
 from iit.utils.config import DEVICE
@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 import torch as t
 from torch import Tensor
 
+dataset_len: Callable[[Dataset], int] = lambda dataset: len(cast(Sized, dataset))
 
 class IITDataset(Dataset):
     """
@@ -30,16 +31,16 @@ class IITDataset(Dataset):
 
     def __getitem__(self, index: int) -> tuple:
         if self.every_combination:
-            base_index = index // len(self.ablation_data)
-            ablation_index = index % len(self.ablation_data)
+            base_index = index // dataset_len(self.ablation_data)
+            ablation_index = index % dataset_len(self.ablation_data)
             base_input = self.base_data[base_index]
             ablation_input = self.ablation_data[ablation_index]
             return base_input, ablation_input
 
         # sample based on seed
         rng = np.random.default_rng(self.seed * 1000000 + index)
-        base_index = rng.choice(len(self.base_data))
-        ablation_index = rng.choice(len(self.ablation_data))
+        base_index = rng.choice(dataset_len(self.base_data))
+        ablation_index = rng.choice(dataset_len(self.ablation_data))
 
         base_input = self.base_data[base_index]
         ablation_input = self.ablation_data[ablation_index]
@@ -48,8 +49,8 @@ class IITDataset(Dataset):
 
     def __len__(self) -> int:
         if self.every_combination:
-            return len(self.base_data) * len(self.ablation_data)
-        return len(self.base_data)
+            return dataset_len(self.base_data) * dataset_len(self.ablation_data)
+        return dataset_len(self.base_data)
 
     @staticmethod
     def get_encoded_input_from_torch_input(
@@ -57,27 +58,32 @@ class IITDataset(Dataset):
         device: t.device = DEVICE
         ) -> tuple[Tensor, Tensor] | tuple[Tensor, Tensor, Tensor]:
         zipped_data = tuple(zip(*xy))
-        x, y = zipped_data[0:2]
-        x = t.stack([x_i.to(device) for x_i in x])
-        y = t.stack([y_i.to(device) for y_i in y])
+        x_in, y_in = zipped_data[0:2]
+        x = t.stack([x_i.to(device) for x_i in x_in])
+        y = t.stack([y_i.to(device) for y_i in y_in])
 
         if len(zipped_data) == 3:
-            int_vars = zipped_data[2]
-            int_vars = t.stack([iv.to(device) for iv in int_vars])
+            int_vars_in = zipped_data[2]
+            int_vars = t.stack([iv.to(device) for iv in int_vars_in])
             return x, y, int_vars
         else:
             return x, y
 
     @staticmethod
-    def collate_fn(batch: list[Tensor] | Tensor, device: t.device = DEVICE) -> tuple[tuple, tuple]:
+    def collate_fn(
+        batch: list[Tensor] | Tensor, 
+        device: t.device = DEVICE
+        ) -> tuple[tuple, tuple]:
         if not isinstance(batch, list):
             # if batch is a single element, because batch_size was 1 or None, it is a tuple instead of a list
-            batch = [batch]
-
-        base_input, ablation_input = zip(*batch)
+            batch_list = [batch]
+        else:
+            batch_list = batch
+        
+        base_input_list, ablation_input_list = zip(*batch_list)
         return IITDataset.get_encoded_input_from_torch_input(
-            base_input, device
-        ), IITDataset.get_encoded_input_from_torch_input(ablation_input, device)
+            base_input_list, device
+        ), IITDataset.get_encoded_input_from_torch_input(ablation_input_list, device)
 
     def make_loader(
         self,
@@ -91,14 +97,16 @@ class IITDataset(Dataset):
             num_workers=num_workers,
             collate_fn=lambda x: self.collate_fn(x, self.device),
         )
-
+    
+    def get_input_shape(self) -> t.Size:
+        return self.base_data.get_input_shape() # type: ignore
 
 def train_test_split(
         dataset: Dataset, 
         test_size: float = 0.2, 
         random_state: Optional[int] = None
         ) -> list[t.utils.data.Subset]:
-    n = len(dataset)
+    n = dataset_len(dataset)
     split = int(n * test_size)
     if random_state is None:
         return t.utils.data.random_split(dataset, [n - split, split])

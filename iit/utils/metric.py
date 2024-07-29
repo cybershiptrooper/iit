@@ -14,7 +14,7 @@ class MetricStore:
     def __init__(self, name: str, metric_type: MetricType):
         self._name = name
         self.type = metric_type
-        self._store = []
+        self._store: list = []
         assert self.type in MetricType, f"Invalid metric type {self.type}"
 
     def append(self, metric: float | list) -> None:
@@ -35,7 +35,11 @@ class MetricStore:
         if self.get_value() is None:
             return f"{self._name}: None"
         if self.type == MetricType.ACCURACY:
-            return f"{self._name}: {float(self.get_value()):.2f}%"
+            val = self.get_value()
+            if isinstance(val, type(None)):
+                return f"{self._name}: None"
+            else:
+                return f"{self._name}: {val:.2f}%"
         return f"{self._name}: {self.get_value():.4f}"
 
     def __len__(self) -> int:
@@ -46,12 +50,9 @@ class MetricStore:
 
 
 class PerTokenMetricStore(MetricStore):
-    def __init__(self, name: str, **kwargs):
+    def __init__(self, name: str, precision: int = 3):
         super().__init__(name, metric_type=MetricType.LOG)
-        if "precision" in kwargs:
-            np.set_printoptions(precision=kwargs["precision"])
-        else:
-            np.set_printoptions(precision=3)
+        np.set_printoptions(precision=precision)
 
     def get_value(self) -> None | float:
         if len(self._store) == 0:

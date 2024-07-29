@@ -2,9 +2,10 @@ from typing import Optional
 import pickle
 
 from iit.utils.nodes import HLNode, LLNode
+from iit.utils.index import Ix
 
 class Correspondence(dict[HLNode, set[LLNode]]):
-    def __init__(
+    def __init__( # type: ignore
         self,
         *args,
         suffixes: dict = {"attn": "attn.hook_result", "mlp": "mlp.hook_post"},
@@ -13,35 +14,31 @@ class Correspondence(dict[HLNode, set[LLNode]]):
         super().__init__(*args, **kwargs)
         self.suffixes = suffixes
 
-    def __setattr__(self, key: str | HLNode, value: dict | set[LLNode]) -> None:
-        if key == "suffixes":
-            assert isinstance(value, dict), ValueError(
-                f"__value is not a dict, but {type(value)}"
-            )
-        else:
-            assert isinstance(key, HLNode), "key must be of type HLNode, got %s" % type(
-                key
-            )
-            assert isinstance(value, set), ValueError(
-                f"__value is not a set, but {type(value)}"
-            )
-            assert all(isinstance(v, LLNode) for v in value), ValueError(
-                "__value contains non-LLNode elements"
-            )
+    def __setattr__(self, key: HLNode, value: set[LLNode]) -> None: # type: ignore
+       
+        assert isinstance(key, HLNode), "key must be of type HLNode, got %s" % type(
+            key
+        )
+        assert isinstance(value, set), ValueError(
+            f"__value is not a set, but {type(value)}"
+        )
+        assert all(isinstance(v, LLNode) for v in value), ValueError(
+            "__value contains non-LLNode elements"
+        )
         # print(self.keys(), self.values())
-        super().__setattr__(key, value)
+        super().__setattr__(key, value) # type: ignore
 
     def get_suffixes(self) -> dict:
         return self.suffixes
 
     @staticmethod
     def get_hook_suffix(corr: dict[HLNode, set[LLNode]]) -> dict[str, str]:
-        suffixes = {}
+        suffixes: dict[str, str] = {}
         for _, ll_nodes in corr.items():
             for ll_node in ll_nodes:
                 # add everything after 'blocks.<layer>.' to the set
-                suffix = ll_node.name.split(".")[2:]
-                suffix = ".".join(suffix)
+                suffix_pieces = ll_node.name.split(".")[2:]
+                suffix = ".".join(suffix_pieces)
                 if "attn" in ll_node.name:
                     if "attn" in suffixes and suffixes["attn"] != suffix:
                         raise ValueError(
@@ -69,13 +66,15 @@ class Correspondence(dict[HLNode, set[LLNode]]):
         ) -> "Correspondence":
         if make_suffixes_from_corr:
             suffixes = Correspondence.get_hook_suffix(d)
-        return cls(
-            {
-                HLNode(k, -1): {LLNode(name=node_name, index=None) for node_name in v}
-                for k, v in d.items()
-            },
-            suffixes=suffixes,
-        )
+        
+        input_dict = {
+            HLNode(k, -1): {LLNode(name=node_name, index=Ix[[None]]) for node_name in v}
+            for k, v in d.items()
+        }
+        if suffixes is not None:
+            return cls(input_dict, suffixes=suffixes)
+        else:
+            return cls(input_dict)
 
     def save(self, filename: str) -> None:
         pickle.dump(self, open(filename, "wb"))
