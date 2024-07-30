@@ -42,7 +42,8 @@ def test_early_stop():
             MetricStore("new_acc", MetricType.ACCURACY),
         ]
     )
-    mc.update({"acc": 100, "loss": 0.1, "new_acc": 100})
+    mc.update({"acc": 1, "loss": 0.1, "new_acc": 1})
+    print(mc.metrics)
     es_condition = mod_pair._check_early_stop_condition(mc.metrics)
     assert es_condition == True
 

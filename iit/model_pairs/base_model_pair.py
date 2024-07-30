@@ -335,7 +335,7 @@ class BaseModelPair(ABC):
                     return False
         if not got_accuracy_metric:
             raise ValueError("No accuracy metric found in test_metrics!")
-        return False
+        return True
 
     @final
     @staticmethod

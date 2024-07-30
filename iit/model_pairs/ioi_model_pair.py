@@ -182,7 +182,7 @@ class IOI_ModelPair(StrictIITModelPair):
                     return False
             elif metric.get_name() == "val/per_token_accuracy":
                 per_toke_acc = metric.get_value()
-                if not isinstance(per_toke_acc, list):
+                if not isinstance(per_toke_acc, list) and not isinstance(per_toke_acc, np.ndarray):
                     per_toke_acc = [per_toke_acc,]
                 if per_toke_acc[-1] < 1:
                     print_if_verbose(

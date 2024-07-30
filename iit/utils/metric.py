@@ -20,7 +20,7 @@ class MetricStore:
     def append(self, metric: float | list) -> None:
         self._store.append(metric)
 
-    def get_value(self) -> None | float | list:
+    def get_value(self) -> None | float | list | np.ndarray:
         if len(self._store) == 0:
             return None
         if self.type == MetricType.ACCURACY:

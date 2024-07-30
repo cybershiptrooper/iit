@@ -14,17 +14,24 @@ class Correspondence(dict[HLNode, set[LLNode]]):
         super().__init__(*args, **kwargs)
         self.suffixes = suffixes
 
-    def __setattr__(self, key: HLNode, value: set[LLNode]) -> None: # type: ignore
-       
-        assert isinstance(key, HLNode), "key must be of type HLNode, got %s" % type(
-            key
-        )
-        assert isinstance(value, set), ValueError(
-            f"__value is not a set, but {type(value)}"
-        )
-        assert all(isinstance(v, LLNode) for v in value), ValueError(
-            "__value contains non-LLNode elements"
-        )
+    def __setattr__(self, key: HLNode | str, value: set[LLNode] | dict[str, str]) -> None: # type: ignore
+        if isinstance(key, str):
+            if key != "suffixes":
+                raise ValueError(f"Key must be an HLNode or 'suffixes', got {key}")
+            assert isinstance(value, dict), ValueError(
+                f"__value is not a dict, but {type(value)}"
+            )
+            assert isinstance(value, dict), ValueError(f"suffixes value is not a dict, but {type(value)}")
+        else:
+            assert isinstance(key, HLNode), "key must be of type HLNode, got %s" % type(
+                key
+            )
+            assert isinstance(value, set), ValueError(
+                f"__value is not a set, but {type(value)}"
+            )
+            assert all(isinstance(v, LLNode) for v in value), ValueError(
+                "__value contains non-LLNode elements"
+            )
         # print(self.keys(), self.values())
         super().__setattr__(key, value) # type: ignore
 
