@@ -73,6 +73,7 @@ def plot_probe_stats(
     # plot
     # TODO: maybe add this: https://stackoverflow.com/questions/9707676/defining-a-discrete-colormap-for-imshow
     fig, ax = plt.subplots(1, 2, figsize=(20, 10))
+    assert isinstance(ax, np.ndarray),  "ax must be a numpy array to be indexed"
     # print(f"correctness_acc: {correctness_acc}")
     # print(f"leaky_acc: {leaky_acc}")
 
