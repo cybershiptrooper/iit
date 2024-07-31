@@ -6,7 +6,7 @@ from transformer_lens.hook_points import HookPoint
 from transformer_lens import ActivationCache
 import numpy as np
 
-IOI_TEST_NAMES = Tensor([10, 20, 30])
+IOI_TEST_NAMES = t.tensor([10, 20, 30])
 
 
 def nonzero_values(a: Tensor) -> Tensor:
@@ -23,30 +23,30 @@ def make_hook(corrupted_cache: ActivationCache, hook_name: str) -> Callable[[Ten
 
 
 def test_duplicate_head() -> None:
-    a = DuplicateHead()(Tensor([[3, 1, 4, 1, 5, 9, 2, 6, 5]]))
-    assert a.equal(Tensor([[-1, -1, -1, 1, -1, -1, -1, -1, 4]]))
+    a = DuplicateHead()(t.tensor([[3, 1, 4, 1, 5, 9, 2, 6, 5]]))
+    assert a.equal(t.tensor([[-1, -1, -1, 1, -1, -1, -1, -1, 4]]))
 
 
 def test_previous_head() -> None:
-    a = PreviousHead()(Tensor([[3, 1, 4, 1, 5, 9, 2, 6, 5]]))
-    assert a.equal(Tensor([[-1, 3, 1, 4, 1, 5, 9, 2, 6]]))
+    a = PreviousHead()(t.tensor([[3, 1, 4, 1, 5, 9, 2, 6, 5]]))
+    assert a.equal(t.tensor([[-1, 3, 1, 4, 1, 5, 9, 2, 6]]))
 
 
 def test_s_inhibition_head() -> None:
     a = SInhibitionHead()(
-        Tensor([[3, 1, 4, 1, 5, 9, 2, 6, 5]]),
-        Tensor([[-1, -1, -1, 1, -1, -1, -1, -1, 4]]),
+        t.tensor([[3, 1, 4, 1, 5, 9, 2, 6, 5]]),
+        t.tensor([[-1, -1, -1, 1, -1, -1, -1, -1, 4]]),
     )
-    assert a.equal(Tensor([[-1, -1, -1, 1, -1, -1, -1, -1, 5]]))
+    assert a.equal(t.tensor([[-1, -1, -1, 1, -1, -1, -1, -1, 5]]))
 
 
 def test_name_mover_head() -> None:
     a = NameMoverHead(IOI_TEST_NAMES, d_vocab=21)(
-        Tensor([[1, 2, 10, 20]]), Tensor([[-1, 20, 10, -1]])
+        t.tensor([[1, 2, 10, 20]]), t.tensor([[-1, 20, 10, -1]])
     )
 
     assert nonzero_values(a[0]).equal(
-        Tensor(
+        t.tensor(
             [
                 [1.0, 20.0, -15.0],
                 [2.0, 10.0, -5.0],
@@ -60,10 +60,10 @@ def test_name_mover_head() -> None:
 
 def test_ioi_hl() -> None:
     a = IOI_HL(d_vocab=21, names=IOI_TEST_NAMES)(
-        (Tensor([[3, 10, 4, 10, 5, 9, 2, 6, 5]]), None, None)
+        (t.tensor([[3, 10, 4, 10, 5, 9, 2, 6, 5]]), None, None)
     )
     assert nonzero_values(a[0]).equal(
-        Tensor(
+        t.tensor(
             [
                 [1.0, 10.0, 10.0],
                 [2.0, 10.0, 10.0],
@@ -80,13 +80,13 @@ def test_ioi_hl() -> None:
 
 
 def test_duplicate_head_patching() -> None:
-    test_names = Tensor(range(10, 60, 1))
+    test_names = t.tensor(range(10, 60, 1))
     hl_model = IOI_HL(d_vocab=61, names=test_names)
 
-    aba = Tensor([[1, 2, -1, 3, 4, -2, 5, 6, -1]])
-    abb = Tensor([[1, 2, -1, 3, 4, -2, 5, 6, -2]])
-    baa = Tensor([[1, 2, -2, 3, 4, -1, 5, 6, -1]])
-    bab = Tensor([[1, 2, -2, 3, 4, -1, 5, 6, -2]])
+    aba = t.tensor([[1, 2, -1, 3, 4, -2, 5, 6, -1]])
+    abb = t.tensor([[1, 2, -1, 3, 4, -2, 5, 6, -2]])
+    baa = t.tensor([[1, 2, -2, 3, 4, -1, 5, 6, -1]])
+    bab = t.tensor([[1, 2, -2, 3, 4, -1, 5, 6, -2]])
     all_prompts = [aba, abb, baa, bab]
     prompt_type = ["aba", "abb", "baa", "bab"]
     same_combinations = [("bab", "aba"), ("abb", "baa"), ("aba", "bab"), ("baa", "abb")]
@@ -138,10 +138,10 @@ def test_duplicate_head_patching() -> None:
 
 def test_all_nodes_patching() -> None:
     hl_model = IOI_HL(d_vocab=21, names=IOI_TEST_NAMES)
-    p_clean = Tensor(
+    p_clean = t.tensor(
         [[1, 2, IOI_TEST_NAMES[0], 3, 4, IOI_TEST_NAMES[1], 5, 6, IOI_TEST_NAMES[0]]]
     )
-    p_corrupted = Tensor(
+    p_corrupted = t.tensor(
         [[1, 2, IOI_TEST_NAMES[0], 3, 4, IOI_TEST_NAMES[1], 5, 6, IOI_TEST_NAMES[1]]]
     )
     model_corrupted_out, model_corrupted_cache = hl_model.run_with_cache(
@@ -160,13 +160,13 @@ def test_all_nodes_patching() -> None:
 def test_s_inhibition_head_patching() -> None:
     return
     # Not implemented yet
-    test_names = Tensor(range(10, 60, 1))
+    test_names = t.tensor(range(10, 60, 1))
     hl_model = IOI_HL(d_vocab=61, names=test_names)
 
-    aba = Tensor([[1, 2, -1, 3, 4, -2, 5, 6, -1]])
-    abb = Tensor([[1, 2, -1, 3, 4, -2, 5, 6, -2]])
-    baa = Tensor([[1, 2, -2, 3, 4, -1, 5, 6, -1]])
-    bab = Tensor([[1, 2, -2, 3, 4, -1, 5, 6, -2]])
+    aba = t.tensor([[1, 2, -1, 3, 4, -2, 5, 6, -1]])
+    abb = t.tensor([[1, 2, -1, 3, 4, -2, 5, 6, -2]])
+    baa = t.tensor([[1, 2, -2, 3, 4, -1, 5, 6, -1]])
+    bab = t.tensor([[1, 2, -2, 3, 4, -1, 5, 6, -2]])
     all_prompts = [aba, abb, baa, bab]
     prompt_type = ["aba", "abb", "baa", "bab"]
     # same_combinations = [("bab", "aba"), ("abb", "baa"), ("aba", "bab"), ("baa", "abb")]
