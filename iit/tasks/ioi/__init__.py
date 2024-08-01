@@ -24,25 +24,25 @@ def make_corr_dict(include_mlp: bool = False, eval: bool = False, use_pos_embed:
     if eval:
         all_nodes_hook = "blocks.0.hook_resid_pre" if not use_pos_embed else "blocks.0.hook_pos_embed"
         return {
-            "hook_duplicate": [all_attns[1]],
+            "hook_duplicate": [[all_attns[1], Ix[[None]], None]],
             # "hook_previous": ["blocks.1.attn.hook_result"],
-            "hook_s_inhibition": [all_attns[2]],
-            "hook_name_mover": [all_attns[4]],
+            "hook_s_inhibition": [[all_attns[2], Ix[[None]], None]],
+            "hook_name_mover": [[all_attns[4], Ix[[None]], None]],
             "all_nodes_hook": (
-                [all_nodes_hook, all_mlps[0]]
+                [[all_nodes_hook, Ix[[None]], None], [all_mlps[0], Ix[[None]], None]]
                 if include_mlp
-                else [all_nodes_hook]
+                else [all_nodes_hook, Ix[[None]], None]
             ),
-            "hook_out": [f"blocks.{n_layers-1}.hook_resid_post"],
+            "hook_out": [[f"blocks.{n_layers-1}.hook_resid_post", Ix[[None]], None]],
         }
     ans = {
-        "hook_duplicate": [all_attns[1]],
+        "hook_duplicate": [[all_attns[1], Ix[[None]], None]],
         # "hook_previous": ["blocks.1.attn.hook_result"],
-        "hook_s_inhibition": [all_attns[2]],
-        "hook_name_mover": [all_attns[4]],
+        "hook_s_inhibition": [[all_attns[2], Ix[[None]], None]],
+        "hook_name_mover": [[all_attns[4], Ix[[None]], None]],
     }
     if include_mlp:
-        ans["all_nodes_hook"] = [all_mlps[0]]
+        ans["all_nodes_hook"] = [[all_mlps[0], Ix[[None]], None]]
     return ans
     
 

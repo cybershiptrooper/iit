@@ -1,8 +1,8 @@
-from typing import Optional
+from typing import Optional, Any
 import pickle
 
 from iit.utils.nodes import HLNode, LLNode
-from iit.utils.index import Ix
+from iit.utils.index import Ix, TorchIndex
 
 class Correspondence(dict[HLNode, set[LLNode]]):
     def __init__( # type: ignore
@@ -39,27 +39,31 @@ class Correspondence(dict[HLNode, set[LLNode]]):
         return self.suffixes
 
     @staticmethod
-    def get_hook_suffix(corr: dict[HLNode, set[LLNode]]) -> dict[str, str]:
+    def get_hook_suffix(corr: dict[HLNode, set[LLNode]] | dict[str, list[tuple[str, TorchIndex, Any]]]) -> dict[str, str]:
         suffixes: dict[str, str] = {}
         for _, ll_nodes in corr.items():
             for ll_node in ll_nodes:
                 # add everything after 'blocks.<layer>.' to the set
-                suffix_pieces = ll_node.name.split(".")[2:]
+                if isinstance(ll_node, LLNode):
+                    ll_node_name = ll_node.name
+                else:
+                    ll_node_name = ll_node[0]
+                suffix_pieces = ll_node_name.split(".")[2:]
                 suffix = ".".join(suffix_pieces)
-                if "attn" in ll_node.name:
+                if "attn" in ll_node_name:
                     if "attn" in suffixes and suffixes["attn"] != suffix:
                         raise ValueError(
                             f"Multiple attn suffixes found: {suffixes['attn']} and {suffix}, multiple attn hook locations are not supported yet."
                         )
                     suffixes["attn"] = suffix
-                elif "mlp" in ll_node.name:
+                elif "mlp" in ll_node_name:
                     if "mlp" in suffixes and suffixes["mlp"] != suffix:
                         raise ValueError(
                             f"Multiple mlp suffixes found: {suffixes['mlp']} and {suffix}, multiple mlp hook locations are not supported yet."
                         )
                     suffixes["mlp"] = suffix
                 else:
-                    raise ValueError(f"Unknown node type {ll_node.name}")
+                    raise ValueError(f"Unknown node type {ll_node_name}")
 
         return suffixes
 
@@ -67,7 +71,7 @@ class Correspondence(dict[HLNode, set[LLNode]]):
     @classmethod
     def make_corr_from_dict(
         cls, 
-        d: dict, 
+        d: dict[str, list[tuple[str, TorchIndex, Any]]], 
         suffixes: Optional[dict[str, str]] = None, 
         make_suffixes_from_corr: bool = False
         ) -> "Correspondence":
@@ -75,7 +79,7 @@ class Correspondence(dict[HLNode, set[LLNode]]):
             suffixes = Correspondence.get_hook_suffix(d)
         
         input_dict = {
-            HLNode(k, -1): {LLNode(name=node_name, index=Ix[[None]]) for node_name in v}
+            HLNode(k, -1): {LLNode(name=node_name, index=index) for node_name, index, _ in v}
             for k, v in d.items()
         }
         if suffixes is not None:
