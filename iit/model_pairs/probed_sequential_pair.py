@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Type
 
 import wandb
 import numpy as np
@@ -82,9 +82,11 @@ class IITProbeSequentialPair(IITModelPair):
         self,
         train_set: IITDataset,
         test_set: IITDataset,
+        optimizer_cls: Type[t.optim.Optimizer] = t.optim.Adam,
         epochs: int = 1000,
         use_wandb: bool = False,
         wandb_name_suffix: str = "",
+        optimizer_kwargs: dict = {},
     ) -> None:
         training_args = self.training_args
         print(f"{training_args=}")
@@ -104,9 +106,10 @@ class IITProbeSequentialPair(IITModelPair):
         params = list(self.ll_model.parameters())
         for p in probes.values():
             params += list(p.parameters())
-        probe_optimizer = t.optim.Adam(params, lr=training_args["lr"])
+        optimizer_kwargs['lr'] = training_args["lr"]
+        probe_optimizer = optimizer_cls(params, **optimizer_kwargs)
 
-        optimizer = t.optim.Adam(self.ll_model.parameters(), lr=training_args["lr"])
+        optimizer = optimizer_cls(self.ll_model.parameters(), **optimizer_kwargs)
         loss_fn = t.nn.CrossEntropyLoss()
 
         if use_wandb and not wandb.run:

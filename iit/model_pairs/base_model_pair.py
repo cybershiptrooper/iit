@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Callable, final
+from typing import Any, Callable, final, Type
 
 import numpy as np
 import torch as t
@@ -218,9 +218,11 @@ class BaseModelPair(ABC):
         self,
         train_set: IITDataset,
         test_set: IITDataset,
+        optimizer_cls: Type[t.optim.Optimizer] = t.optim.Adam,
         epochs: int = 1000,
         use_wandb: bool = False,
         wandb_name_suffix: str = "",
+        optimizer_kwargs: dict = {},
     ) -> None:
         training_args = self.training_args
         print(f"{training_args=}")
@@ -240,7 +242,8 @@ class BaseModelPair(ABC):
 
         early_stop = training_args["early_stop"]
 
-        optimizer = t.optim.Adam(self.ll_model.parameters(), lr=training_args["lr"])
+        optimizer_kwargs['lr'] = training_args["lr"]
+        optimizer = optimizer_cls(self.ll_model.parameters(), **optimizer_kwargs)
         loss_fn = self.loss_fn
         scheduler_cls = training_args.get("lr_scheduler", None)
         if scheduler_cls == t.optim.lr_scheduler.ReduceLROnPlateau:
