@@ -13,7 +13,7 @@ from transformer_lens.HookedTransformer import HookPoint
 import iit.utils.index as index
 from iit.model_pairs.base_model_pair import BaseModelPair
 from iit.model_pairs.iit_model_pair import IITModelPair
-from iit.model_pairs.nodes import LLNode
+from iit.utils.nodes import LLNode
 from iit.utils.eval_metrics import kl_div
 from iit.utils.iit_dataset import IITDataset
 from iit.utils.node_picker import (

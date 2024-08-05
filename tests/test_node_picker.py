@@ -1,6 +1,6 @@
 from iit.utils.node_picker import get_all_nodes, get_params_in_circuit
 from transformer_lens import HookedTransformer
-from iit.model_pairs.nodes import LLNode
+from iit.utils.nodes import LLNode
 from iit.utils.index import Ix
 import iit.utils.index as index
 from iit.utils.correspondence import Correspondence

@@ -1,7 +1,7 @@
 from tests.test_utils.caching_model_pair import CachingModelPair
 from transformer_lens import HookedTransformer
 from iit.utils.correspondence import Correspondence
-from iit.model_pairs.nodes import HLNode, LLNode
+from iit.utils.nodes import HLNode, LLNode
 import iit.utils.index as index
 from iit.model_pairs.ll_model import LLModel
 import torch

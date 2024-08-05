@@ -6,7 +6,7 @@ from torch import Tensor
 from transformer_lens.hook_points import HookedRootModule
 
 from iit.model_pairs.base_model_pair import BaseModelPair
-from iit.model_pairs.nodes import HLNode, LLNode
+from iit.utils.nodes import HLNode, LLNode
 from iit.utils.correspondence import Correspondence
 from iit.utils.metric import MetricStore, MetricStoreCollection, MetricType
 from iit.model_pairs.ll_model import LLModel

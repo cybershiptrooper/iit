@@ -4,7 +4,7 @@ import torch as t
 import iit.utils.node_picker as node_picker
 from iit.model_pairs.base_model_pair import Callable, Tensor
 from iit.model_pairs.iit_behavior_model_pair import IITBehaviorModelPair
-from iit.model_pairs.nodes import LLNode
+from iit.utils.nodes import LLNode
 from iit.utils.metric import MetricStore, MetricStoreCollection, MetricType
 
 

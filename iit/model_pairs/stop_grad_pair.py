@@ -3,7 +3,7 @@ from iit.model_pairs.freeze_model_pair import FreezedModelPair
 from transformer_lens.hook_points import HookPoint
 from torch import Tensor
 import torch
-from iit.model_pairs.nodes import LLNode
+from iit.utils.nodes import LLNode
 import iit.utils.node_picker as node_picker
 from transformer_lens import HookedTransformer
 

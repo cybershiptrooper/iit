@@ -10,7 +10,7 @@ from transformer_lens.hook_points import HookedRootModule, HookPoint
 
 import wandb
 from iit.model_pairs.ll_model import LLModel
-from iit.model_pairs.nodes import HLNode, LLNode
+from iit.utils.nodes import HLNode, LLNode
 from iit.utils.config import WANDB_ENTITY
 from iit.utils.correspondence import Correspondence
 from iit.utils.iit_dataset import IITDataset

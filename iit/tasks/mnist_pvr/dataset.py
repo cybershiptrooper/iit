@@ -5,7 +5,7 @@ from PIL import Image, ImageOps
 import numpy as np
 from .utils import *
 from iit.utils.index import Ix, Index
-from iit.model_pairs.base_model_pair import HLNode
+from iit.utils.nodes import HLNode
 
 
 class ImagePVRDataset(Dataset):
