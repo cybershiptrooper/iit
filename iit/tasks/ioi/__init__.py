@@ -18,31 +18,31 @@ ioi_cfg = {
 }
 
 
-def make_corr_dict(include_mlp=False, eval=False, use_pos_embed=False):
+def make_corr_dict(include_mlp: bool = False, eval: bool = False, use_pos_embed: bool = False) -> dict:
     all_attns = [f"blocks.{i}.attn.hook_z" for i in range(ioi_cfg["n_layers"])]
     all_mlps = [f"blocks.{i}.mlp.hook_post" for i in range(ioi_cfg["n_layers"])]
     if eval:
         all_nodes_hook = "blocks.0.hook_resid_pre" if not use_pos_embed else "blocks.0.hook_pos_embed"
         return {
-            "hook_duplicate": [all_attns[1]],
+            "hook_duplicate": [[all_attns[1], Ix[[None]], None]],
             # "hook_previous": ["blocks.1.attn.hook_result"],
-            "hook_s_inhibition": [all_attns[2]],
-            "hook_name_mover": [all_attns[4]],
+            "hook_s_inhibition": [[all_attns[2], Ix[[None]], None]],
+            "hook_name_mover": [[all_attns[4], Ix[[None]], None]],
             "all_nodes_hook": (
-                [all_nodes_hook, all_mlps[0]]
+                [[all_nodes_hook, Ix[[None]], None], [all_mlps[0], Ix[[None]], None]]
                 if include_mlp
-                else [all_nodes_hook]
+                else [all_nodes_hook, Ix[[None]], None]
             ),
-            "hook_out": [f"blocks.{n_layers-1}.hook_resid_post"],
+            "hook_out": [[f"blocks.{n_layers-1}.hook_resid_post", Ix[[None]], None]],
         }
     ans = {
-        "hook_duplicate": [all_attns[1]],
+        "hook_duplicate": [[all_attns[1], Ix[[None]], None]],
         # "hook_previous": ["blocks.1.attn.hook_result"],
-        "hook_s_inhibition": [all_attns[2]],
-        "hook_name_mover": [all_attns[4]],
+        "hook_s_inhibition": [[all_attns[2], Ix[[None]], None]],
+        "hook_name_mover": [[all_attns[4], Ix[[None]], None]],
     }
     if include_mlp:
-        ans["all_nodes_hook"] = [all_mlps[0]]
+        ans["all_nodes_hook"] = [[all_mlps[0], Ix[[None]], None]]
     return ans
     
 
@@ -69,8 +69,8 @@ corr = Correspondence.make_corr_from_dict(
 )
 
 
-def make_ll_edges(corr: Correspondence):
-    def expand_nodes(ll_node: LLNode):
+def make_ll_edges(corr: Correspondence) -> list[tuple[LLNode, LLNode]]:
+    def expand_nodes(ll_node: LLNode) -> list[LLNode]:
         ll_nodes_expanded = []
         for head_index in range(n_heads):
             idx = Ix[:, :, head_index, :]
@@ -85,8 +85,8 @@ def make_ll_edges(corr: Correspondence):
         hl_node_to = HLNode(edge[1], -1)
         ll_nodes_from = corr[hl_node_from]  # set of LLNodes
         ll_nodes_to = corr[hl_node_to]
-        additional_from_nodes = set()
-        remove_from_nodes = set()
+        additional_from_nodes: set[LLNode] = set()
+        remove_from_nodes: set[LLNode] = set()
         for ll_node_from in ll_nodes_from:
             if "attn" in ll_node_from.name:
                 ll_nodes_from_expanded = expand_nodes(ll_node_from)
@@ -98,8 +98,8 @@ def make_ll_edges(corr: Correspondence):
         ll_nodes_from = ll_nodes_from | additional_from_nodes
         ll_nodes_from = ll_nodes_from - remove_from_nodes
 
-        additional_to_nodes = set()
-        remove_to_nodes = set()
+        additional_to_nodes: set[LLNode] = set()
+        remove_to_nodes: set[LLNode] = set()
         for ll_node_to in ll_nodes_to:
             if "attn" in ll_node_to.name:
                 ll_nodes_to_expanded = expand_nodes(ll_node_to)

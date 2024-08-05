@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 
 import torch as t
+from torch import Tensor
 import wandb
 from tqdm import tqdm
 
@@ -10,6 +11,7 @@ from iit.tasks.task_loader import get_alignment, get_dataset
 from iit.utils.config import DEVICE
 from iit.utils.plotter import plot_ablation_stats
 from iit.utils.wrapper import get_hook_points
+from iit.tasks.mnist_pvr.dataset import ImagePVRDataset
 
 
 def evaluate_model_on_ablations(
@@ -18,7 +20,7 @@ def evaluate_model_on_ablations(
     test_set: t.utils.data.Dataset,
     eval_args: dict,
     verbose: bool = False,
-):
+) -> dict:
     print("reached evaluate_model!")
     stats_per_layer = {}
     for hook_point in tqdm(get_hook_points(ll_model), desc="Hook points"):
@@ -26,7 +28,7 @@ def evaluate_model_on_ablations(
             task,
             config={
                 "hook_point": hook_point,
-                "input_shape": test_set.get_input_shape(),
+                "input_shape": test_set.get_input_shape(), # type: ignore
             },
         )
         model_pair = IITProbeSequentialPair(
@@ -40,23 +42,26 @@ def evaluate_model_on_ablations(
         # set up stats
         hookpoint_stats = {}
         for hl_node, _ in model_pair.corr.items():
-            hookpoint_stats[hl_node] = 0
+            hookpoint_stats[hl_node] = t.zeros(1)
         # find test accuracy
         with t.no_grad():
             for base_input_lists in tqdm(dataloader, desc=f"Ablations on {hook_point}"):
-                base_input = [x.to(DEVICE) for x in base_input_lists]
+                base_input: tuple[Tensor, Tensor, Tensor] = (x.to(DEVICE) for x in base_input_lists) # type: ignore
                 for hl_node, ll_nodes in model_pair.corr.items():
-                    ablated_input = test_set.patch_batch_at_hl(
-                        list(base_input[0]),
-                        list(base_input_lists[-1]),
-                        hl_node,
-                        list(base_input[1]),
-                    )
-                    ablated_input = (
-                        t.stack(ablated_input[0]).to(DEVICE),  # input
-                        t.stack(ablated_input[1]).to(DEVICE),  # label
-                        t.stack(ablated_input[2]).to(DEVICE),
-                    )  # intermediate_data
+                    if isinstance(test_set, ImagePVRDataset):
+                        ablated_input_pre = test_set.patch_batch_at_hl(
+                            list(base_input),
+                            list(base_input_lists),
+                            hl_node,
+                        )
+                        ablated_input = (
+                            t.stack(ablated_input_pre[0]).to(DEVICE),  # input
+                            t.stack(ablated_input_pre[1]).to(DEVICE),  # label
+                            t.stack(ablated_input_pre[2]).to(DEVICE),
+                        )  # intermediate_data
+                    else:
+                        raise ValueError(f"patch_batch_at_hl not implemented for this dataset type: {type(test_set)}")
+                    
                     # unsqueeze if single element
                     if ablated_input[1].shape == ():
                         assert (
@@ -115,6 +120,8 @@ if __name__ == "__main__":
     ll_model, hl_model, corr = get_alignment(
         task, config={"input_shape": test_set.get_input_shape()}
     )
+    assert ll_model is not None
+    assert hl_model is not None
     model_pair = IITProbeSequentialPair(
         ll_model=ll_model, hl_model=hl_model, corr=corr, training_args=training_args
     )
@@ -122,7 +129,7 @@ if __name__ == "__main__":
         model_pair.train(
             train_set,
             test_set,
-            epochs=training_args["epochs"],
+            epochs=int(training_args["epochs"]),
             use_wandb=use_wandb,
         )
     else:
@@ -147,8 +154,8 @@ if __name__ == "__main__":
 
     if use_wandb:
         wandb.init(project="iit")
-        wandb.run.name = f"{leaky_task}_ablation"
-        wandb.run.save()
+        wandb.run.name = f"{leaky_task}_ablation" # type: ignore
+        wandb.run.save() # type: ignore
         wandb.config.update(eval_args)
 
     leaky_stats_per_layer = evaluate_model_on_ablations(

@@ -7,6 +7,7 @@ from iit.tasks.task_loader import get_alignment, get_dataset
 import torch as t
 from tqdm import tqdm
 from iit.utils.plotter import plot_probe_stats
+from iit.utils.iit_dataset import IITDataset
 import os
 import wandb
 from datetime import datetime
@@ -21,14 +22,14 @@ def evaluate_model_on_probes(
     use_wandb: bool = False,
     verbose: bool = False,
     save_probes: bool = False,
-):
+) -> dict:
     print("reached evaluate_model!")
     probe_stats_per_layer = {}
     log_stats_per_layer = {}
     if use_wandb:
         wandb.init(project="iit")
-        wandb.run.name = f"{task}_probes"
-        wandb.run.save()
+        wandb.run.name = f"{task}_probes" # type: ignore
+        wandb.run.save() # type: ignore
         # add training args to wandb config
         wandb.config.update(probe_training_args)
 
@@ -37,7 +38,7 @@ def evaluate_model_on_probes(
             task,
             config={
                 "hook_point": hook_point,
-                "input_shape": test_set.get_input_shape(),
+                "input_shape": test_set.get_input_shape(), # type: ignore
             },
         )
         model_pair = IITProbeSequentialPair(
@@ -47,7 +48,7 @@ def evaluate_model_on_probes(
             training_args=probe_training_args,
         )
 
-        input_shape = train_set.get_input_shape()
+        input_shape = train_set.get_input_shape() # type: ignore
         trainer_out = train_probes_on_model_pair(
             model_pair, input_shape, train_set, probe_training_args
         )
@@ -103,13 +104,15 @@ if __name__ == "__main__":
     ll_model, hl_model, corr = get_alignment(
         task, config={"input_shape": test_set.get_input_shape()}
     )
+    assert ll_model is not None
+    assert hl_model is not None
     model_pair = IITProbeSequentialPair(
         ll_model=ll_model, hl_model=hl_model, corr=corr, training_args=training_args
     )
     model_pair.train(
         train_set,
         test_set,
-        epochs=training_args["epochs"],
+        epochs=int(training_args["epochs"]),
         use_wandb=use_wandb,
     )
     if use_wandb:

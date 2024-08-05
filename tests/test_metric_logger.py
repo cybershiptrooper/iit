@@ -2,6 +2,8 @@ from iit.utils.metric import MetricStore, MetricStoreCollection, MetricType
 from iit.model_pairs.iit_model_pair import IITModelPair
 from iit.model_pairs.ioi_model_pair import IOI_ModelPair
 
+from .test_model_pairs import get_test_model_pair_ingredients
+
 
 def test_metric_collection():
     mc = MetricStoreCollection(
@@ -25,10 +27,13 @@ def test_early_stop():
     mc.update({"acc": 0.5, "loss": 0.2, "new_acc": 0.6})
     mc.update({"acc": 0.7, "loss": 0.1, "new_acc": 0.8})
 
-    es_condition = IITModelPair._check_early_stop_condition(mc.metrics)
+    ll_model, hl_model, corr, _, _ = get_test_model_pair_ingredients()
+    mod_pair = IITModelPair(hl_model, ll_model, corr)
+
+    es_condition = mod_pair._check_early_stop_condition(mc.metrics)
     assert es_condition == False
     mc.update({"acc": 0.991, "loss": 0.1, "new_acc": 0.99})
-    es_condition = IITModelPair._check_early_stop_condition(mc.metrics)
+    es_condition = mod_pair._check_early_stop_condition(mc.metrics)
     assert es_condition == False
     mc = MetricStoreCollection(
         [
@@ -37,8 +42,9 @@ def test_early_stop():
             MetricStore("new_acc", MetricType.ACCURACY),
         ]
     )
-    mc.update({"acc": 100, "loss": 0.1, "new_acc": 100})
-    es_condition = IITModelPair._check_early_stop_condition(mc.metrics)
+    mc.update({"acc": 1, "loss": 0.1, "new_acc": 1})
+    print(mc.metrics)
+    es_condition = mod_pair._check_early_stop_condition(mc.metrics)
     assert es_condition == True
 
 

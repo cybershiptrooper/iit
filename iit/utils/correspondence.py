@@ -1,22 +1,27 @@
+from typing import Optional, Any
 import pickle
 
 from iit.utils.nodes import HLNode, LLNode
+from iit.utils.index import Ix, TorchIndex
 
 class Correspondence(dict[HLNode, set[LLNode]]):
-    def __init__(
+    def __init__( # type: ignore
         self,
         *args,
-        suffixes={"attn": "attn.hook_result", "mlp": "mlp.hook_post"},
+        suffixes: dict = {"attn": "attn.hook_result", "mlp": "mlp.hook_post"},
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.suffixes = suffixes
 
-    def __setattr__(self, key, value):
-        if key == "suffixes":
+    def __setattr__(self, key: HLNode | str, value: set[LLNode] | dict[str, str]) -> None: # type: ignore
+        if isinstance(key, str):
+            if key != "suffixes":
+                raise ValueError(f"Key must be an HLNode or 'suffixes', got {key}")
             assert isinstance(value, dict), ValueError(
                 f"__value is not a dict, but {type(value)}"
             )
+            assert isinstance(value, dict), ValueError(f"suffixes value is not a dict, but {type(value)}")
         else:
             assert isinstance(key, HLNode), "key must be of type HLNode, got %s" % type(
                 key
@@ -28,48 +33,59 @@ class Correspondence(dict[HLNode, set[LLNode]]):
                 "__value contains non-LLNode elements"
             )
         # print(self.keys(), self.values())
-        super().__setattr__(key, value)
+        super().__setattr__(key, value) # type: ignore
 
-    def get_suffixes(self):
+    def get_suffixes(self) -> dict:
         return self.suffixes
 
     @staticmethod
-    def get_hook_suffix(corr: dict[HLNode, set[LLNode]]) -> dict[str, str]:
-        suffixes = {}
-        for hl_node, ll_nodes in corr.items():
+    def get_hook_suffix(corr: dict[HLNode, set[LLNode]] | dict[str, list[tuple[str, TorchIndex, Any]]]) -> dict[str, str]:
+        suffixes: dict[str, str] = {}
+        for _, ll_nodes in corr.items():
             for ll_node in ll_nodes:
                 # add everything after 'blocks.<layer>.' to the set
-                suffix = ll_node.name.split(".")[2:]
-                suffix = ".".join(suffix)
-                if "attn" in ll_node.name:
+                if isinstance(ll_node, LLNode):
+                    ll_node_name = ll_node.name
+                else:
+                    ll_node_name = ll_node[0]
+                suffix_pieces = ll_node_name.split(".")[2:]
+                suffix = ".".join(suffix_pieces)
+                if "attn" in ll_node_name:
                     if "attn" in suffixes and suffixes["attn"] != suffix:
                         raise ValueError(
                             f"Multiple attn suffixes found: {suffixes['attn']} and {suffix}, multiple attn hook locations are not supported yet."
                         )
                     suffixes["attn"] = suffix
-                elif "mlp" in ll_node.name:
+                elif "mlp" in ll_node_name:
                     if "mlp" in suffixes and suffixes["mlp"] != suffix:
                         raise ValueError(
                             f"Multiple mlp suffixes found: {suffixes['mlp']} and {suffix}, multiple mlp hook locations are not supported yet."
                         )
                     suffixes["mlp"] = suffix
                 else:
-                    raise ValueError(f"Unknown node type {ll_node.name}")
+                    raise ValueError(f"Unknown node type {ll_node_name}")
 
         return suffixes
 
 
     @classmethod
-    def make_corr_from_dict(cls, d: dict, suffixes=None, make_suffixes_from_corr=False):
+    def make_corr_from_dict(
+        cls, 
+        d: dict[str, list[tuple[str, TorchIndex, Any]]], 
+        suffixes: Optional[dict[str, str]] = None, 
+        make_suffixes_from_corr: bool = False
+        ) -> "Correspondence":
         if make_suffixes_from_corr:
             suffixes = Correspondence.get_hook_suffix(d)
-        return cls(
-            {
-                HLNode(k, -1): {LLNode(name=node_name, index=None) for node_name in v}
-                for k, v in d.items()
-            },
-            suffixes=suffixes,
-        )
+        
+        input_dict = {
+            HLNode(k, -1): {LLNode(name=node_name, index=index) for node_name, index, _ in v}
+            for k, v in d.items()
+        }
+        if suffixes is not None:
+            return cls(input_dict, suffixes=suffixes)
+        else:
+            return cls(input_dict)
 
-    def save(self, filename: str):
+    def save(self, filename: str) -> None:
         pickle.dump(self, open(filename, "wb"))

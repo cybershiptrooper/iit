@@ -1,4 +1,7 @@
+from typing import Optional, Callable
+
 import torch as t
+from torch import Tensor
 from transformer_lens import HookedTransformer
 from typing import Optional, Tuple
 from transformer_lens.hook_points import NamesFilter, HookPoint, HookedRootModule
@@ -11,8 +14,9 @@ class LLModel:
     """
     def __init__(self, 
                  model: HookedRootModule = None,
-                 cfg: dict = None,
-                 detach_while_caching=True):
+                 cfg: Optional[dict] = None,
+                 detach_while_caching: bool = True
+                 ):
         assert model is not None or cfg is not None, "Either model or cfg must be provided."
         if model is None:
             model = HookedTransformer(cfg=cfg)
@@ -23,7 +27,7 @@ class LLModel:
         self,
         names_filter: NamesFilter = None,
         incl_bwd: bool = False,
-        device=None,
+        device: Optional[t.device | str] = None,
         remove_batch_dim: bool = False,
         cache: Optional[dict] = None,
     ) -> Tuple[dict, list, list]:
@@ -54,7 +58,7 @@ class LLModel:
             names_filter = lambda name: name in filter_list
         self.is_caching = True
 
-        def save_hook(tensor: t.Tensor, hook: HookPoint):
+        def save_hook(tensor: t.Tensor, hook: HookPoint) -> None:
             if self.detach_while_caching or (not (tensor.requires_grad and self.model.training)):
                 # detach if the tensor requires grad and the model is not training
                 tensor_to_cache = tensor.detach()
@@ -73,7 +77,7 @@ class LLModel:
             else:
                 cache[hook.name] = tensor_to_cache.to(device)
 
-        def save_hook_back(tensor, hook):
+        def save_hook_back(tensor: Tensor, hook: HookPoint) -> None:
             # we always detach here as loss.backward() was already called 
             # and will throw an error if we don't do this
             tensor_to_cache = tensor.detach() 
@@ -93,22 +97,22 @@ class LLModel:
         return cache, fwd_hooks, bwd_hooks
     
     @classmethod
-    def make_from_hooked_transformer(cls, hooked_transformer: HookedTransformer, detach_while_caching):
+    def make_from_hooked_transformer(cls, hooked_transformer: HookedTransformer, detach_while_caching: bool) -> "LLModel":
         ll_model = cls(hooked_transformer, detach_while_caching=detach_while_caching)
         ll_model.load_state_dict(hooked_transformer.state_dict())
         return ll_model
     
-    def run_with_cache(
+    def run_with_cache( # type: ignore
         self,
         *model_args,
-        names_filter: NamesFilter = None,
-        device=None,
-        remove_batch_dim=False,
-        incl_bwd=False,
-        reset_hooks_end=True,
-        clear_contexts=False,
+        names_filter: Optional[NamesFilter] = None,
+        device: Optional[t.device | str] = None,
+        remove_batch_dim: bool = False,
+        incl_bwd: bool = False,
+        reset_hooks_end: bool = True,
+        clear_contexts: bool = False,
         **model_kwargs,
-    ):
+    ) -> Tuple[Tensor, ActivationCache]:
         """
         Runs the model and returns the model output and a Cache object.
 
@@ -153,7 +157,7 @@ class LLModel:
         )
         return model_out, cache_dict
     
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> t.Any:
         if name == "run_with_cache":
             return self.run_with_cache
         elif name == "get_caching_hooks":
@@ -163,8 +167,8 @@ class LLModel:
     def __call__(self, *args: t.Any, **kwds: t.Any) -> t.Any:
         return self.model(*args, **kwds)
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.model.__repr__()
     
-    def __str__(self):
+    def __str__(self) -> str:
         return self.model.__str__()

@@ -1,22 +1,26 @@
-from typing import Any
-from iit.model_pairs.freeze_model_pair import FreezedModelPair
-from transformer_lens.hook_points import HookPoint
+from typing import Any, Callable
+
 from torch import Tensor
 import torch
+from transformer_lens.hook_points import HookPoint, HookedRootModule #type: ignore
+from transformer_lens import HookedTransformer #type: ignore
+
+from iit.model_pairs.freeze_model_pair import FreezedModelPair
+from iit.model_pairs.ll_model import LLModel
 from iit.utils.nodes import LLNode
 import iit.utils.node_picker as node_picker
-from transformer_lens import HookedTransformer
+from iit.utils.correspondence import Correspondence
 
 
 class StopGradHookedModel:
     def __init__(
         self,
         model: HookedTransformer,
-        params_not_in_circuit,
-        nodes_not_in_circuit,
-        post_nodes_not_in_circuit,
-        scale=1e6,
-        use_forward_hooks = True,
+        params_not_in_circuit: list[LLNode],
+        nodes_not_in_circuit: list[LLNode],
+        post_nodes_not_in_circuit: list[LLNode],
+        scale: float = 1e6,
+        use_forward_hooks: bool = True,
     ):
         self.model = model
         self.params_not_in_circuit = params_not_in_circuit
@@ -38,8 +42,8 @@ class StopGradHookedModel:
             )
 
     @staticmethod
-    def make_ln_hook(ll_node: LLNode, scale):
-        def hook_fn(hook_point_out: Tensor, hook: HookPoint) -> torch.Tensor:
+    def make_ln_hook(ll_node: LLNode, scale: float) -> Callable[[Tensor, HookPoint], Tensor]:
+        def hook_fn(hook_point_out: Tensor, hook: HookPoint) -> Tensor:
             return (
                 hook_point_out / scale
             )  # TODO: this won't work when individual heads are switched on/off
@@ -47,10 +51,10 @@ class StopGradHookedModel:
         return hook_fn
 
     @staticmethod
-    def make_detached_hook(ll_node: LLNode):
+    def make_detached_hook(ll_node: LLNode) -> Callable[[Tensor, HookPoint], Tensor]:
         print(f"Attaching hook to {ll_node.name}")
 
-        def hook_fn(hook_point_out: Tensor, hook: HookPoint) -> torch.Tensor:
+        def hook_fn(hook_point_out: Tensor, hook: HookPoint) -> Tensor:
             act_idx = ll_node.get_index()
             hook_point_out[act_idx] = (
                 hook_point_out[act_idx].clone().detach()
@@ -62,8 +66,8 @@ class StopGradHookedModel:
 
         return hook_fn
 
-    def make_zero_grad_hook(self, ll_node: LLNode):
-        def hook_fn(grad: Tensor, hook: HookPoint) -> torch.Tensor:
+    def make_zero_grad_hook(self, ll_node: LLNode) -> Callable[[Tensor, HookPoint], list[Tensor]]:
+        def hook_fn(grad: Tensor, hook: HookPoint) -> list[Tensor]:
             act_idx = ll_node.get_index()
             ori_grad_shape = grad.shape
             grad[act_idx] = torch.zeros_like(grad[act_idx])
@@ -77,7 +81,7 @@ class StopGradHookedModel:
 
         return hook_fn
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         self.model.reset_hooks()
         if self.use_forward_hooks:
             return self.model.run_with_hooks(
@@ -107,7 +111,13 @@ class StopGradHookedModel:
 
 
 class StopGradModelPair(FreezedModelPair):
-    def __init__(self, hl_model, ll_model, corr, training_args={}):
+    def __init__(
+            self, 
+            hl_model: HookedRootModule, 
+            ll_model: HookedRootModule | LLModel, 
+            corr: Correspondence, 
+            training_args: dict = {}
+            ):
         default_training_args = {
             "batch_size": 256,
             "lr": 0.001,
@@ -133,7 +143,7 @@ class StopGradModelPair(FreezedModelPair):
             post_nodes_not_in_circuit,
             scale=training_args["scale"],
             use_forward_hooks=training_args["use_ln_hooks"],
-        )
+        ) #type: ignore
         self.wandb_method = "stop grads"
 
         # TODO: test another part of the model and see if the gradient changes after registering the hook

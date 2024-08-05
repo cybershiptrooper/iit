@@ -3,10 +3,9 @@ from typing import Callable
 import numpy as np
 import torch as t
 from torch import Tensor
-from transformer_lens.hook_points import HookedRootModule
+from transformer_lens.hook_points import HookedRootModule #type: ignore
 
 from iit.model_pairs.base_model_pair import BaseModelPair
-from iit.utils.nodes import HLNode, LLNode
 from iit.utils.correspondence import Correspondence
 from iit.utils.metric import MetricStore, MetricStoreCollection, MetricType
 from iit.model_pairs.ll_model import LLModel
@@ -17,13 +16,13 @@ class IITModelPair(BaseModelPair):
         self,
         hl_model: HookedRootModule,
         ll_model: HookedRootModule | LLModel,
-        corr: "Correspondence",
-        training_args={},
+        corr: Correspondence,
+        training_args: dict = {},
     ):
         self.hl_model = hl_model
         self.hl_model.requires_grad_(False)
 
-        self.corr: dict[HLNode, set[LLNode]] = corr
+        self.corr = corr
         print(self.hl_model.hook_dict)
         print(self.corr.keys())
         assert all([str(k) in self.hl_model.hook_dict for k in self.corr.keys()])
@@ -50,9 +49,9 @@ class IITModelPair(BaseModelPair):
         self.wandb_method = "iit"
 
     @property
-    def loss_fn(self):
+    def loss_fn(self) -> Callable[[Tensor, Tensor], Tensor]:
         # TODO: make this more general
-        def class_loss(output, target):
+        def class_loss(output: Tensor, target: Tensor) -> Tensor:
             # convert to (N, C, ...) if necessary
             if len(target.shape) == len(output.shape) and len(output.shape) > 2:
                 # convert target to float if necessary
@@ -79,7 +78,7 @@ class IITModelPair(BaseModelPair):
             return class_loss
 
     @staticmethod
-    def make_train_metrics():
+    def make_train_metrics() -> MetricStoreCollection:
         return MetricStoreCollection(
             [
                 MetricStore("train/iit_loss", MetricType.LOSS),
@@ -87,7 +86,7 @@ class IITModelPair(BaseModelPair):
         )
 
     @staticmethod
-    def make_test_metrics():
+    def make_test_metrics() -> MetricStoreCollection:
         return MetricStoreCollection(
             [
                 MetricStore("val/iit_loss", MetricType.LOSS),
@@ -97,10 +96,10 @@ class IITModelPair(BaseModelPair):
 
     def run_eval_step(
         self,
-        base_input: tuple[t.Tensor, t.Tensor, t.Tensor],
-        ablation_input: tuple[t.Tensor, t.Tensor, t.Tensor],
+        base_input: tuple[Tensor, Tensor, Tensor],
+        ablation_input: tuple[Tensor, Tensor, Tensor],
         loss_fn: Callable[[Tensor, Tensor], Tensor],
-    ):
+    ) -> dict:
         hl_node = self.sample_hl_name()  # sample a high-level variable to ablate
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
         loss = loss_fn(ll_output, hl_output)
@@ -113,16 +112,16 @@ class IITModelPair(BaseModelPair):
 
     def run_train_step(
         self,
-        base_input: tuple[t.Tensor, t.Tensor, t.Tensor],
-        ablation_input: tuple[t.Tensor, t.Tensor, t.Tensor],
+        base_input: tuple[Tensor, Tensor, Tensor],
+        ablation_input: tuple[Tensor, Tensor, Tensor],
         loss_fn: Callable[[Tensor, Tensor], Tensor],
         optimizer: t.optim.Optimizer,
-    ):
+    ) -> dict:
         optimizer.zero_grad()
         hl_node = self.sample_hl_name()  # sample a high-level variable to ablate
         loss = self.get_IIT_loss_over_batch(
             base_input, ablation_input, hl_node, loss_fn
         )
-        loss.backward()
+        loss.backward() # type: ignore
         optimizer.step()
         return {"train/iit_loss": loss.item()}

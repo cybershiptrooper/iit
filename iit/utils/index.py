@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Iterable, Optional
 
 
 class TorchIndex:
@@ -35,11 +35,14 @@ class TorchIndex:
             )
         )
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.hashable_tuple)
 
-    def __eq__(self, other):
-        return self.hashable_tuple == other.hashable_tuple
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, TorchIndex):
+            return self.hashable_tuple == other.hashable_tuple
+        else:
+            return False
 
     def __repr__(self) -> str:
         ret = "["
@@ -63,10 +66,10 @@ class TorchIndex:
         ret += "]"
         return ret
 
-    def graphviz_index(self, use_actual_colon=True) -> str:
-        return self.__repr__(use_actual_colon=use_actual_colon)
+    def graphviz_index(self) -> str:
+        return self.__repr__()
 
-    def intersects(self, other) -> bool:
+    def intersects(self, other: Optional["TorchIndex"]) -> bool:
         if other is None or self == Ix[[None]] or other == Ix[[None]]:
             return True # None means all indices
         if len(self.as_index) != len(other.as_index):
@@ -104,8 +107,7 @@ class TorchIndex:
 class Index:
     """A class purely for syntactic sugar, that returns the index it's indexed with"""
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: Iterable) -> TorchIndex:
         return TorchIndex(index)
-
 
 Ix = Index()

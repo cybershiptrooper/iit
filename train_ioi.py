@@ -1,5 +1,6 @@
 from iit.utils.train_scripts import train_ioi
 from iit.utils.io_scripts import save_model
+from iit.utils.argparsing import IOIArgParseNamespace
 import torch as t
 
 if __name__ == "__main__":
@@ -22,6 +23,7 @@ if __name__ == "__main__":
     parser.add_argument("--include-mlp", action="store_true")
 
     args = parser.parse_args()
+    namespace = IOIArgParseNamespace(**vars(args))
 
-    model_pair = train_ioi(args)
-    save_model(model_pair, args, "ioi")
+    model_pair = train_ioi(namespace)
+    save_model(model_pair, namespace, "ioi")

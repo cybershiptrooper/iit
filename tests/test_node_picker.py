@@ -122,8 +122,8 @@ def test_suffix_maker():
         "mlp": "mlp.hook_post"
     }
 
-    all_attns = [LLNode(f"blocks.{i}.attn.hook_result", index=None) for i in range(n_layers)]
-    all_mlps = [LLNode(f"blocks.{i}.mlp.hook_post", index=None) for i in range(n_layers)]
+    all_attns = [(f"blocks.{i}.attn.hook_result", Ix[[None]], None) for i in range(n_layers)]
+    all_mlps = [(f"blocks.{i}.mlp.hook_post", Ix[[None]], None) for i in range(n_layers)]
 
     corr_dict = {
         "all_nodes_hook": [all_mlps[3], all_attns[0]]

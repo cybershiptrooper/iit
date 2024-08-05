@@ -14,8 +14,9 @@ dataset_config = {
 task = "mnist_pvr"
 train_set, test_set = get_dataset(task, dataset_config=dataset_config)
 ll_model, hl_model, corr = get_alignment(
-    task, config={"input_shape": test_set.base_data.get_input_shape()}
+    task, config={"input_shape": test_set.base_data.get_input_shape()} # type: ignore
 )
+assert ll_model is not None
 model_pair = IITBehaviorModelPair(
     ll_model=ll_model, hl_model=hl_model, corr=corr, training_args=training_args
 )  # TODO: add wrapper for choosing model pair

@@ -1,11 +1,15 @@
 import os
 import json
-import torch
+
+import torch as t
 import wandb
+
 from iit.tasks.task_loader import get_default_corr
+from iit.model_pairs.base_model_pair import BaseModelPair
+from iit.utils.argparsing import IOIArgParseNamespace
 
 
-def save_model(model_pair, args, task):
+def save_model(model_pair: BaseModelPair, args: IOIArgParseNamespace, task: str) -> None:
     """
     Folder structure:
     -ll_models
@@ -29,7 +33,7 @@ def save_model(model_pair, args, task):
     os.makedirs(results_dir, exist_ok=True)
 
     # save model
-    torch.save(ll_model.state_dict(), f"{save_dir}/ll_model_{model_suffix}.pth")
+    t.save(ll_model.state_dict(), f"{save_dir}/ll_model_{model_suffix}.pth")
 
     # save training args
     training_args_file = os.path.join(results_dir, "training_args.json")
@@ -47,7 +51,7 @@ def save_model(model_pair, args, task):
     with open(metrics_file, "w") as f:
         f.write(f"Epochs: {epochs}\n")
         early_stop_condition = model_pair._check_early_stop_condition(
-            model_pair.test_metrics.metrics
+            model_pair.test_metrics
         )
         f.write(f"Early stop: {early_stop_condition}\n")
         f.write("\n\n--------------------------------\n\n")
@@ -74,8 +78,13 @@ def save_model(model_pair, args, task):
 
 
 def load_files_from_wandb(
-    task, weights, next_token, files_to_download, base_path, include_mlp=True
-):
+    task: str, 
+    weights: str, 
+    next_token: bool, 
+    files_to_download: list[str], 
+    base_path: str, 
+    include_mlp: bool = True
+) -> None:
     api = wandb.Api()
     runs = api.runs("iit_models")
     next_token_str = "_next_token" if next_token else ""

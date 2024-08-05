@@ -1,11 +1,14 @@
+from typing import Callable
+
 import torch as t
+from torch import Tensor
 from transformer_lens.hook_points import HookedRootModule, HookPoint
 
 from iit.tasks.hl_model import HLModel
 
 
 class DuplicateHead(t.nn.Module):
-    def forward(self, tokens:t.Tensor):
+    def forward(self, tokens : Tensor) -> Tensor:
         # Write the last previous position of any duplicated token (used at S2)
         positions = (tokens[..., None, :] == tokens[..., :, None]) # batch seq1 seq2
         positions = t.triu(positions, diagonal=1) # only consider positions before this one
@@ -15,7 +18,7 @@ class DuplicateHead(t.nn.Module):
         return ret
     
 class PreviousHead(t.nn.Module):
-    def forward(self, tokens:t.Tensor):
+    def forward(self, tokens: Tensor) -> Tensor:
         # copy token S1 to token S1+1 (used at S1+1)
         ret = t.full_like(tokens, -1)
         ret[..., 1:] = tokens[..., :-1]
@@ -26,7 +29,7 @@ class InductionHead(t.nn.Module):
     
 
 class SInhibitionHead(t.nn.Module):
-    def forward(self, tokens: t.Tensor, duplicate: t.Tensor):
+    def forward(self, tokens: Tensor, duplicate: Tensor) -> Tensor:
         """
         when duplicate is not -1, 
         output a flag to the name mover head to NOT copy this name
@@ -40,8 +43,8 @@ class SInhibitionHead(t.nn.Module):
         # extract token positions we care about from duplicate
         duplicate_pos_at_duplicates = t.where(duplicate != -1)
         duplicate_pos_at_tokens = duplicate[duplicate_pos_at_duplicates[0], duplicate_pos_at_duplicates[1]]
-        duplicate_pos_at_tokens = (duplicate_pos_at_duplicates[0], duplicate_pos_at_tokens)
-        duplicate_tokens = tokens[duplicate_pos_at_tokens]
+        duplicate_pos_at_tokens_tup = (duplicate_pos_at_duplicates[0], duplicate_pos_at_tokens)
+        duplicate_tokens = tokens[duplicate_pos_at_tokens_tup]
         assert ret[duplicate_pos_at_duplicates].abs().sum() == 0 # sanity check, to make sure we're not overwriting anything
         # replace ret with the duplicated tokens
         ret[duplicate_pos_at_duplicates] = duplicate_tokens
@@ -49,12 +52,12 @@ class SInhibitionHead(t.nn.Module):
         return ret
     
 class NameMoverHead(t.nn.Module):
-    def __init__(self, names, d_vocab:int=40, ):
+    def __init__(self, names: Tensor, d_vocab : int=40):
         super().__init__()
         self.d_vocab_out = d_vocab
         self.names = names
 
-    def forward(self, tokens: t.Tensor, s_inhibition: t.Tensor):
+    def forward(self, tokens: Tensor, s_inhibition: Tensor) -> Tensor:
         """
         increase logit of all names in the sentence, except those flagged by s_inhibition
         """
@@ -84,7 +87,7 @@ class IOI_HL(HookedRootModule, HLModel):
     - S-inhibition heads: Inhibit attention of Name Mover Heads to S1 and S2 tokens
     - Name mover heads: Copy all previous names in the sentence
     """
-    def __init__(self, d_vocab, names):
+    def __init__(self, d_vocab: int, names: Tensor):
         super().__init__()
         self.all_nodes_hook = HookPoint()
         self.duplicate_head = DuplicateHead()
@@ -99,12 +102,12 @@ class IOI_HL(HookedRootModule, HLModel):
         self.d_vocab = d_vocab
         self.setup()
 
-    def is_categorical(self):
+    def is_categorical(self) -> bool:
         return True
     
-    def forward(self, args, verbose=False):
-        show = print if verbose else lambda *args, **kwargs: None
-        if isinstance(args, t.Tensor):
+    def forward(self, args: Tensor | tuple, verbose: bool = False) -> Tensor:
+        show: Callable[[t.Any], None] = lambda *args, **kwargs: print(*args, **kwargs) if verbose else None
+        if isinstance(args, Tensor):
             input = args
         elif isinstance(args, tuple):
             input = args[0]

@@ -1,3 +1,5 @@
+from typing import Iterator
+
 from enum import Enum
 import numpy as np
 
@@ -9,16 +11,16 @@ class MetricType(Enum):
 
 
 class MetricStore:
-    def __init__(self, name, metric_type: MetricType):
+    def __init__(self, name: str, metric_type: MetricType):
         self._name = name
         self.type = metric_type
-        self._store = []
+        self._store: list = []
         assert self.type in MetricType, f"Invalid metric type {self.type}"
 
-    def append(self, metric):
+    def append(self, metric: float | list) -> None:
         self._store.append(metric)
 
-    def get_value(self):
+    def get_value(self) -> None | float | list | np.ndarray:
         if len(self._store) == 0:
             return None
         if self.type == MetricType.ACCURACY:
@@ -26,17 +28,21 @@ class MetricStore:
         else:
             return np.mean(self._store)
 
-    def get_name(self):
+    def get_name(self) -> str:
         return self._name
 
     def __str__(self) -> str:
         if self.get_value() is None:
             return f"{self._name}: None"
         if self.type == MetricType.ACCURACY:
-            return f"{self._name}: {float(self.get_value()):.2f}%"
+            val = self.get_value()
+            if isinstance(val, type(None)):
+                return f"{self._name}: None"
+            else:
+                return f"{self._name}: {val:.2f}%"
         return f"{self._name}: {self.get_value():.4f}"
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._store)
     
     def __repr__(self) -> str:
@@ -44,14 +50,11 @@ class MetricStore:
 
 
 class PerTokenMetricStore(MetricStore):
-    def __init__(self, name, **kwargs):
+    def __init__(self, name: str, precision: int = 3):
         super().__init__(name, metric_type=MetricType.LOG)
-        if "precision" in kwargs:
-            np.set_printoptions(precision=kwargs["precision"])
-        else:
-            np.set_printoptions(precision=3)
+        np.set_printoptions(precision=precision)
 
-    def get_value(self):
+    def get_value(self) -> None | float:
         if len(self._store) == 0:
             return None
         return np.mean(self._store, axis=0)
@@ -64,7 +67,7 @@ class MetricStoreCollection:
     def __init__(self, list_of_metric_stores: list[MetricStore]):
         self.metrics = list_of_metric_stores
 
-    def update(self, metrics: dict[str, float]):
+    def update(self, metrics: dict[str, float | list]) -> None:
         for k, v in metrics.items():
             key_found = False
             for metric in self.metrics:
@@ -78,7 +81,7 @@ class MetricStoreCollection:
             np.unique(lengths).shape[0] == 1
         ), f"All metric stores should have the same length after update!, got lengths: {lengths}"
 
-    def create_metric_store(self, name, metric_type: MetricType):
+    def create_metric_store(self, name: str, metric_type: MetricType) -> MetricStore:
         assert [
             len(metric._store) == 0 for metric in self.metrics
         ], "All metric stores should be empty before creating a new one!"
@@ -92,5 +95,8 @@ class MetricStoreCollection:
     def __repr__(self) -> str:
         return self.__str__()
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {metric.get_name(): metric.get_value() for metric in self.metrics}
+
+    def __iter__(self) -> Iterator[MetricStore]:
+        return iter(self.metrics)

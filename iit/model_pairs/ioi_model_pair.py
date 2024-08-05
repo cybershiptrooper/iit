@@ -1,16 +1,27 @@
+from typing import Callable, Optional
+
+import numpy as np
+import torch as t
+from torch import Tensor
+from transformer_lens.hook_points import HookedRootModule #type: ignore
+
 from iit.model_pairs.strict_iit_model_pair import StrictIITModelPair
+from iit.model_pairs.ll_model import LLModel
+from iit.utils.correspondence import Correspondence
 from iit.utils.config import DEVICE
 from iit.utils.metric import MetricStore, MetricType, MetricStoreCollection, PerTokenMetricStore
-import numpy as np
-from typing import Callable
-from torch import Tensor
-import torch as t
 from iit.utils.nodes import HLNode
 import iit.utils.index as index
 
 
 class IOI_ModelPair(StrictIITModelPair):
-    def __init__(self, hl_model, ll_model, corr, training_args={}):
+    def __init__(
+            self, 
+            hl_model: HookedRootModule, 
+            ll_model: LLModel, 
+            corr: Correspondence, 
+            training_args: dict = {}
+            ):
         super().__init__(hl_model, ll_model, corr, training_args=training_args)
         default_training_args = {
             "next_token": False,
@@ -19,13 +30,14 @@ class IOI_ModelPair(StrictIITModelPair):
         }
         self.training_args = {**default_training_args, **self.training_args}
         self.next_token = self.training_args["next_token"]
+        self.__loss_fn: Optional[Callable[[Tensor, Tensor], Tensor]] = None
 
     @property
-    def loss_fn(self):
-        if hasattr(self, "__loss_fn"):
+    def loss_fn(self) -> Callable[[Tensor, Tensor], Tensor]:
+        if self.__loss_fn is not None:
             return self.__loss_fn
 
-        def per_token_weighted_cross_entropy(output, target):
+        def per_token_weighted_cross_entropy(output: Tensor, target: Tensor) -> Tensor:
             if target.shape == output.shape:
                 target = target.argmax(dim=-1) # convert one-hot to index for cross_entropy
             if len(output.shape) == 2:
@@ -46,11 +58,11 @@ class IOI_ModelPair(StrictIITModelPair):
         return self.__loss_fn
 
     @staticmethod
-    def get_label_idxs():
+    def get_label_idxs() -> index.TorchIndex:
         return index.Ix[:, -1]
 
     @staticmethod
-    def make_test_metrics():
+    def make_test_metrics() -> MetricStoreCollection:
         return MetricStoreCollection(
             [
                 MetricStore("val/iit_loss", MetricType.LOSS),
@@ -63,11 +75,11 @@ class IOI_ModelPair(StrictIITModelPair):
 
     def get_IIT_loss_over_batch(
         self,
-        base_input: tuple[t.Tensor, t.Tensor, t.Tensor],
-        ablation_input: tuple[t.Tensor, t.Tensor, t.Tensor],
+        base_input: tuple[Tensor, Tensor, Tensor],
+        ablation_input: tuple[Tensor, Tensor, Tensor],
         hl_node: HLNode,
         loss_fn: Callable[[Tensor, Tensor], Tensor],
-    ):
+    ) -> Tensor:
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
         # hl_output = t.nn.functional.softmax(hl_output, dim=-1)
         hl_argmax = t.argmax(hl_output[:, -1, :], dim=-1)
@@ -77,10 +89,10 @@ class IOI_ModelPair(StrictIITModelPair):
 
     def run_eval_step(
         self,
-        base_input,
-        ablation_input,
+        base_input: tuple[Tensor, Tensor, Tensor],
+        ablation_input: tuple[Tensor, Tensor, Tensor],
         loss_fn: Callable[[Tensor, Tensor], Tensor],
-    ):
+    ) -> dict:
         # compute IIT loss and accuracy on last token position only
         hl_node = self.sample_hl_name()
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
@@ -95,8 +107,8 @@ class IOI_ModelPair(StrictIITModelPair):
             # To handle the case when labels are one-hot
             hl_output = t.argmax(hl_output, dim=-1)
         top1 = t.argmax(ll_output, dim=-1)
-        accuracy = (top1[:, -1] == hl_output[:, -1]).float().mean()
-        IIA = accuracy.item()
+        accuracy = (top1[:, -1] == hl_output[:, -1]).float().mean().item()
+        IIA = accuracy
 
         # compute behavioral accuracy
         base_x, base_y = base_input[0:2]
@@ -148,24 +160,30 @@ class IOI_ModelPair(StrictIITModelPair):
 
     @staticmethod
     def _check_early_stop_fn(
-        test_metrics: list[MetricStore],
-        verbose=False,
-        non_ioi_thresh=0.65,
-        use_per_token_check=False,
-    ):
+        test_metrics: MetricStoreCollection,
+        verbose: bool = False,
+        non_ioi_thresh: float = 0.65,
+        use_per_token_check: bool = False,
+    ) -> bool:
         """
         Early stopping for IOI
         """
-        print_if_verbose = lambda x: print(x) if verbose else None  # noqa: E731
+        print_if_verbose: Callable[[t.Any], None] = lambda x: print(x) if verbose else None  # noqa: E731
         for metric in test_metrics:
-            if metric.get_name() == "val/IIA" and metric.get_value() < 100:
-                print_if_verbose(f"IIA is not enough: {metric.get_value()}")
-                return False
-            elif metric.get_name() == "val/strict_accuracy" and metric.get_value() < 100:
-                print_if_verbose(f"strict_accuracy is not enough: {metric.get_value()}")
-                return False
+            if metric.get_name() == "val/IIA":
+                val = metric.get_value()
+                if (isinstance(val, float) and val < 100) or isinstance(val, type(None)):
+                    print_if_verbose(f"IIA is not enough: {metric.get_value()}")
+                    return False
+            elif metric.get_name() == "val/strict_accuracy":
+                val = metric.get_value()
+                if (isinstance(val, float) and val < 100) or isinstance(val, type(None)):
+                    print_if_verbose(f"strict_accuracy is not enough: {metric.get_value()}")
+                    return False
             elif metric.get_name() == "val/per_token_accuracy":
                 per_toke_acc = metric.get_value()
+                if not isinstance(per_toke_acc, list) and not isinstance(per_toke_acc, np.ndarray):
+                    per_toke_acc = [per_toke_acc,]
                 if per_toke_acc[-1] < 1:
                     print_if_verbose(
                         f"per_token_acc at IOI index is not enough: {per_toke_acc[-1]}"
@@ -194,16 +212,12 @@ class IOI_ModelPair(StrictIITModelPair):
                             return False
         return True
 
-    def _check_early_stop_condition(
-        self,
-        *args,
-        **kwargs,
-    ):
+    def _check_early_stop_condition(self, test_metrics: MetricStoreCollection) -> bool:
         if not self.training_args["next_token"]:
-            return super()._check_early_stop_condition(*args, **kwargs)
+            return super()._check_early_stop_condition(test_metrics)
+        
         return self._check_early_stop_fn(
-            *args,
-            **kwargs,
-            non_ioi_thresh=self.training_args["non_ioi_thresh"],
-            use_per_token_check=self.training_args["use_per_token_check"],
-        )
+                test_metrics,
+                non_ioi_thresh=self.training_args["non_ioi_thresh"],
+                use_per_token_check=self.training_args["use_per_token_check"],
+            )

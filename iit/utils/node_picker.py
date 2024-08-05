@@ -71,7 +71,7 @@ def get_post_nodes_not_in_circuit(
     print("WARNING: This doesn't work when switching individual heads on/off.")
     suffixes = hl_ll_corr.get_suffixes()
     nodes_not_in_circuit = get_nodes_not_in_circuit(ll_model, hl_ll_corr)
-    post_nodes_not_in_circuit = []
+    post_nodes_not_in_circuit: list[LLNode] = []
     for node in nodes_not_in_circuit:
         layer = int(node.name.split(".")[1])
         if "attn" in node.name and  "attn" in suffixes:
@@ -179,7 +179,7 @@ def get_params_not_in_circuit(
             params_not_in_circuit.append(param)
     return params_not_in_circuit
 
-def find_ll_node_by_name(name, list_of_nodes: list[LLNode]):
+def find_ll_node_by_name(name: str, list_of_nodes: list[LLNode]) -> list[LLNode]:
     ll_nodes = []
     for node in list_of_nodes:
         if node.name == name:

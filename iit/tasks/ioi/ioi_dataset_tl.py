@@ -9,16 +9,20 @@ import random
 from typing import Dict, List, Optional
 
 import einops
-import torch
+import torch as t
+from torch import Tensor
 import tqdm.auto as tqdm
 from datasets import load_dataset
 from torch.utils.data import DataLoader, Dataset
+from transformers import AutoTokenizer
 
-from transformer_lens import utils
+from transformer_lens import utils, HookedTransformer
+from iit.utils.config import DEVICE
+from iit.utils.iit_dataset import dataset_len
 
 
 # %%
-def sanity_check(model):
+def sanity_check(model: HookedTransformer) -> Tensor:
     """
     Very basic eval - just feeds a string into the model (in this case, the first paragraph of Circuits: Zoom In), and returns the loss. It's a rough and quick sanity check - if the loss is <5 the model is probably OK, if the loss is >7 something's gone wrong.
 
@@ -31,7 +35,7 @@ def sanity_check(model):
 
 
 # %%
-def make_wiki_data_loader(tokenizer, batch_size=8):
+def make_wiki_data_loader(tokenizer: AutoTokenizer, batch_size: int = 8) -> DataLoader:
     """
     Evaluate on Wikitext 2, a dump of Wikipedia articles. (Using the train set because it's larger, I don't really expect anyone to bother with quarantining the validation set nowadays.)
 
@@ -46,7 +50,7 @@ def make_wiki_data_loader(tokenizer, batch_size=8):
     return data_loader
 
 
-def make_owt_data_loader(tokenizer, batch_size=8):
+def make_owt_data_loader(tokenizer: AutoTokenizer, batch_size: int = 8) -> DataLoader:
     """
     Evaluate on OpenWebText an open source replication of the GPT-2 training corpus (Reddit links with >3 karma)
 
@@ -61,7 +65,7 @@ def make_owt_data_loader(tokenizer, batch_size=8):
     return data_loader
 
 
-def make_pile_data_loader(tokenizer, batch_size=8):
+def make_pile_data_loader(tokenizer: AutoTokenizer, batch_size: int = 8) -> DataLoader:
     """
     Evaluate on the first 10k texts from The Pile.
 
@@ -77,7 +81,7 @@ def make_pile_data_loader(tokenizer, batch_size=8):
     return data_loader
 
 
-def make_code_data_loader(tokenizer, batch_size=8):
+def make_code_data_loader(tokenizer: AutoTokenizer, batch_size: int = 8) -> DataLoader:
     """
     Evaluate on the CodeParrot dataset, a dump of Python code.
 
@@ -105,8 +109,13 @@ DATASET_LOADERS = [
 
 
 # %%
-@torch.inference_mode()
-def evaluate_on_dataset(model, data_loader, truncate=100, device="cuda"):
+@t.inference_mode()
+def evaluate_on_dataset(
+    model: HookedTransformer, 
+    data_loader: DataLoader, 
+    truncate: int = 100, 
+    device: str = "cuda"
+    ) -> float:
     running_loss = 0
     total = 0
     for batch in tqdm.tqdm(data_loader):
@@ -119,10 +128,15 @@ def evaluate_on_dataset(model, data_loader, truncate=100, device="cuda"):
 
 
 # %%
-@torch.inference_mode()
+@t.inference_mode()
 def induction_loss(
-    model, tokenizer=None, batch_size=4, subseq_len=384, prepend_bos=None, device="cuda"
-):
+    model: HookedTransformer, 
+    tokenizer: Optional[AutoTokenizer] = None,
+    batch_size: int = 4, 
+    subseq_len: int = 384, 
+    prepend_bos: Optional[bool] = None, 
+    device: str = "cuda"
+) -> Tensor:
     """
     Generates a batch of random sequences repeated twice, and measures model performance on the second half. Tests whether a model has induction heads.
 
@@ -130,7 +144,7 @@ def induction_loss(
     whose default is True unless specified otherwise), which is useful to give models a resting position, and sometimes models were trained with this.
     """
     # Make the repeated sequence
-    first_half_tokens = torch.randint(100, 20000, (batch_size, subseq_len)).to(device)
+    first_half_tokens = t.randint(100, 20000, (batch_size, subseq_len)).to(device)
     repeated_tokens = einops.repeat(first_half_tokens, "b p -> b (2 p)")
 
     # Use the provided prepend_bos as an override if it's not None;
@@ -154,8 +168,13 @@ def induction_loss(
 
 
 # %%
-@torch.inference_mode()
-def evaluate(model, truncate=100, batch_size=8, tokenizer=None):
+@t.inference_mode()
+def evaluate(
+    model: HookedTransformer, 
+    truncate: int = 100, 
+    batch_size: int = 8,
+    tokenizer: Optional[AutoTokenizer] = None
+    ) -> Dict[str, float]:
     if tokenizer is None:
         tokenizer = model.tokenizer
     losses = {}
@@ -201,7 +220,7 @@ class IOIDataset(Dataset):
 
     def __init__(
         self,
-        tokenizer,
+        tokenizer: AutoTokenizer,
         templates: Optional[List[str]] = None,
         names: Optional[List[str]] = None,
         nouns: Optional[Dict[str, List[str]]] = None,
@@ -209,9 +228,11 @@ class IOIDataset(Dataset):
         symmetric: bool = False,
         prepend_bos: bool = True,
         seed: int = 42,
+        device: t.device = DEVICE,
     ):
         self.tokenizer = tokenizer
         self.prepend_bos = prepend_bos
+        self.device = device
 
         self.templates = (
             templates if templates is not None else self.get_default_templates()
@@ -227,10 +248,10 @@ class IOIDataset(Dataset):
             # If symmetric, get_sample will return two samples
             self.samples.extend(self.get_sample(symmetric=symmetric))
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.samples)
 
-    def __getitem__(self, idx, pad_token=False):
+    def __getitem__(self, idx: int, pad_token: bool = False) -> Dict[str, Tensor]:
         sample = self.samples[idx]
         prompt = self.tokenizer.encode(sample["text"])
         if self.prepend_bos:
@@ -241,13 +262,13 @@ class IOIDataset(Dataset):
         idx_to_ablate = len(prompt) - 2
 
         return {
-            "prompt": torch.LongTensor(prompt),
-            "IO": torch.LongTensor(self.tokenizer.encode(sample["IO"])),
-            "S": torch.LongTensor(self.tokenizer.encode(sample["S"])),
-            "idx_to_ablate": idx_to_ablate,
+            "prompt": t.LongTensor(prompt),
+            "IO": t.LongTensor(self.tokenizer.encode(sample["IO"])),
+            "S": t.LongTensor(self.tokenizer.encode(sample["S"])),
+            "idx_to_ablate": t.LongTensor((idx_to_ablate,)),
         }
 
-    def get_sample(self, symmetric=False) -> List[Dict[str, str]]:
+    def get_sample(self, symmetric: bool = False) -> List[Dict[str, str]]:
         template: str = random.choice(self.templates)
         for noun_type, noun_list in self.nouns.items():
             template = template.replace(f"[{noun_type}]", random.choice(noun_list))
@@ -271,11 +292,11 @@ class IOIDataset(Dataset):
         return samples
 
     @staticmethod
-    def get_default_names():
+    def get_default_names() -> List[str]:
         return ["John", "Mary"]
 
     @staticmethod
-    def get_default_templates():
+    def get_default_templates() -> List[str]:
         return [
             "Then, [B] and [A] went to the [LOCATION]. [A] gave the [OBJECT] to [B]",
             "Then, [A] and [B] went to the [LOCATION]. [B] gave the [OBJECT] to [A]",
@@ -284,17 +305,22 @@ class IOIDataset(Dataset):
         ]
 
     @staticmethod
-    def get_default_nouns():
+    def get_default_nouns() -> Dict[str, List[str]]:
         return {
             "LOCATION": ["store", "market"],
             "OBJECT": ["milk", "eggs", "bread"],
         }
 
 
-@torch.inference_mode()
+@t.inference_mode()
 def ioi_eval(
-    model, dataset=None, batch_size=8, num_samples=1000, tokenizer=None, symmetric=False
-):
+    model: HookedTransformer, 
+    dataset: Optional[Dataset] = None, 
+    batch_size: int = 8, 
+    num_samples: int = 1000, 
+    tokenizer: Optional[AutoTokenizer] = None, 
+    symmetric: bool = False
+) -> Dict[str, float]:
     """Evaluate the Model on the Indirect Object Identification Task.
 
     Args:
@@ -314,9 +340,9 @@ def ioi_eval(
     if dataset is None:
         dataset = IOIDataset(tokenizer, num_samples=num_samples, symmetric=symmetric)
 
-    def collate(samples):
+    def collate(samples: list[dict]) -> dict: #type: ignore 
         prompts = [sample["prompt"] for sample in samples]
-        padded_prompts = torch.nn.utils.rnn.pad_sequence(prompts, batch_first=True)
+        padded_prompts = t.nn.utils.rnn.pad_sequence(prompts, batch_first=True)
         return {
             "prompt": padded_prompts,
             "IO": [sample["IO"] for sample in samples],
@@ -344,7 +370,7 @@ def ioi_eval(
             s = s[:min_len]
 
             # Remove identical prefixes
-            start_idx = torch.where(io != s)[0][0]
+            start_idx = t.where(io != s)[0][0]
             io = io[start_idx]
             s = s[start_idx]
             logit_idx = prefix_length + start_idx - 1
@@ -361,32 +387,27 @@ def ioi_eval(
             total_logit_diff += logit_diff.item()
 
     return {
-        "Logit Difference": total_logit_diff / len(dataset),
-        "Accuracy": total_correct / len(dataset),
+        "Logit Difference": total_logit_diff / dataset_len(dataset),
+        "Accuracy": total_correct / dataset_len(dataset),
     }
 
-from iit.utils.config import DEVICE
 class IOIDatasetWrapper(IOIDataset):
-    def __init__(self, *args, 
-                 device=DEVICE, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.device = device
         
-    def get_inputs(self):
+    def get_inputs(self) -> Tensor:
         items = [self.__getitem__(i) for i in range(len(self))]
         inputs = [item[0] for item in items]
-        inputs_tensor = torch.stack(inputs)
+        inputs_tensor = t.stack(inputs)
         return inputs_tensor
     
-    def get_targets(self):
+    def get_targets(self) -> list[Tensor]:
         items = [self.__getitem__(i) for i in range(len(self))]
         targets = [item[1] for item in items]
         return targets
     
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor, Tensor]: # type: ignore 
         x = super().__getitem__(idx)
         prompt = x['prompt']
-        y = list(prompt[1:])
-        y = torch.nn.functional.one_hot(torch.tensor(y), num_classes=self.tokenizer.vocab_size).float()
+        y_list = list(prompt[1:])
+        y = t.nn.functional.one_hot(t.tensor(y_list), num_classes=self.tokenizer.vocab_size).float()
         return (x['prompt'][:-1].to(self.device), (y).to(self.device), (x['IO']).to(self.device))
     

@@ -1,38 +1,34 @@
+from typing import Callable
+
 import matplotlib.pyplot as plt
 import numpy as np
 import wandb
-from PIL import Image
 from iit.model_pairs.base_model_pair import HLNode
 
 
-def get_hookpoint_labels(hookpoints):
+def get_hookpoint_labels(hookpoints: list[str]) -> list[str]:
     return [
         i.replace("mod.", "").replace(".hook_point", "").replace(".", " ")
         for i in hookpoints
     ]
 
 
-def get_leaky_hlnode_labels(hl_nodes):
+def get_leaky_hlnode_labels(hl_nodes: list[str | HLNode]) -> list[str]:
     x_tick_string = """{} -> {}"""
-    if type(hl_nodes[0]) == HLNode:
-        hl_nodes = [i.name for i in hl_nodes]
-    elif type(hl_nodes[0]) != str:
-        raise ValueError(
-            f"hl_nodes must be a list of str or HLNode, got {type(hl_nodes[0])}"
-        )
-    return [x_tick_string.format(i.split("_")[1], i.split("_")[-1]) for i in hl_nodes]
+    hl_nodes_pass = [node if isinstance(node, str) else node.name for node in hl_nodes]
+    return [x_tick_string.format(i.split("_")[1], i.split("_")[-1]) for i in hl_nodes_pass]
 
 
 def plot_probe_stats(
-    correctness_stats_per_layer,
-    leaky_stats_per_layer,
-    reduction="max",
-    prefix="",
-    use_wandb=False,
-):
+    correctness_stats_per_layer: dict[str, dict],
+    leaky_stats_per_layer: dict[str, dict],
+    reduction: str = "max",
+    prefix: str = "",
+    use_wandb: bool = False,
+) -> None:
     # make arrays
     hookpoints = list(correctness_stats_per_layer.keys())
-    get_hl_nodes = lambda stats: list(stats[list(stats.keys())[0]]["probes"].keys())
+    get_hl_nodes: Callable[[dict], list] = lambda stats: list(stats[list(stats.keys())[0]]["probes"].keys())
     hl_nodes = get_hl_nodes(correctness_stats_per_layer)
     # correctness_loss = np.zeros((len(hookpoints), len(hl_nodes)))
     correctness_acc = np.zeros((len(hookpoints), len(hl_nodes)))
@@ -46,8 +42,8 @@ def plot_probe_stats(
     leaky_acc = np.zeros((len(hookpoints), len(hl_nodes)))
     leaky_hl_nodes = get_hl_nodes(leaky_stats_per_layer)
     leaky_accs_all = np.zeros((len(hookpoints), len(leaky_hl_nodes)))
-    get_idx = lambda name: hl_nodes.index("hook_{}".format(name))
-    reduction = (
+    get_idx: Callable[[str], int] = lambda name: hl_nodes.index("hook_{}".format(name))
+    reduction_function = (
         np.mean
         if reduction == "mean"
         else (
@@ -57,7 +53,7 @@ def plot_probe_stats(
         )
     )
     assert (
-        reduction is not None
+        reduction_function is not None
     ), f"reduction must be one of 'mean', 'max', or 'median', got {reduction}"
     for i, hookpoint in enumerate(hookpoints):
         accs = np.zeros((len(hl_nodes), len(hl_nodes)))
@@ -69,7 +65,7 @@ def plot_probe_stats(
             accs[get_idx(leaked_from), get_idx(leaked_to)] = acc
             leaky_accs_all[i, j] = acc
         # print(f"accs: {accs}")
-        accs_reduced = reduction(accs, axis=0)  # rows = leaked_from; cols = leaked_to
+        accs_reduced = reduction_function(accs, axis=0)  # rows = leaked_from; cols = leaked_to
         for j, _ in enumerate(hl_nodes):
             leaky_acc[i, j] = accs_reduced[j]
         # print(f"leaky_acc: {leaky_acc}")
@@ -77,6 +73,7 @@ def plot_probe_stats(
     # plot
     # TODO: maybe add this: https://stackoverflow.com/questions/9707676/defining-a-discrete-colormap-for-imshow
     fig, ax = plt.subplots(1, 2, figsize=(20, 10))
+    assert isinstance(ax, np.ndarray),  "ax must be a numpy array to be indexed"
     # print(f"correctness_acc: {correctness_acc}")
     # print(f"leaky_acc: {leaky_acc}")
 
@@ -124,7 +121,7 @@ def plot_probe_stats(
     print("Plotted probe stats. Find them in plots folder.")
 
 
-def plot_ablation_stats(stats_per_layer, prefix="", use_wandb=False):
+def plot_ablation_stats(stats_per_layer: dict[str, dict], prefix: str = "", use_wandb: bool = False) -> None:
     # make arrays
     hookpoints = list(stats_per_layer.keys())
     hl_nodes = list(stats_per_layer[hookpoints[0]].keys())

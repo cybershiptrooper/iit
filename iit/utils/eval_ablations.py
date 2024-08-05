@@ -1,3 +1,4 @@
+from typing import Callable, Optional
 import os
 from enum import Enum
 from typing import Dict, List, Literal
@@ -5,14 +6,14 @@ from typing import Dict, List, Literal
 import dataframe_image as dfi
 import pandas as pd
 import torch as t
-from torch.utils.data import Dataset
+from torch import Tensor
 from tqdm import tqdm
 from transformer_lens import HookedTransformer
 from transformer_lens.HookedTransformer import HookPoint
 
 import iit.utils.index as index
 from iit.model_pairs.base_model_pair import BaseModelPair
-from iit.model_pairs.iit_model_pair import IITModelPair
+from iit.utils.eval_datasets import IITUniqueDataset
 from iit.utils.nodes import LLNode
 from iit.utils.eval_metrics import kl_div
 from iit.utils.iit_dataset import IITDataset
@@ -32,18 +33,18 @@ class Categorical_Metric(Enum):
 
 def do_intervention(
     model_pair: BaseModelPair,
-    base_input: t.Tensor,
-    ablation_input: t.Tensor,
+    base_input: Tensor,
+    ablation_input: Tensor,
     node: LLNode,
-    hook_fn: callable,
-):
+    hook_fn: Callable[[Tensor, HookPoint], Tensor],
+) -> Tensor:
     """
     Runs the model with ablation_input and caches the result. 
     Then runs the model with base_input and with hook_fn applied to the node.
     Args:
         model_pair: BaseModelPair
-        base_input: t.Tensor
-        ablation_input: t.Tensor
+        base_input: Tensor
+        ablation_input: Tensor
         node: LLNode
         hook_fn: callable
     """
@@ -55,16 +56,17 @@ def do_intervention(
     return out
 
 
+# TODO: change name to reflect that it's not just for resampling
 def resample_ablate_node(
-    model_pair: IITModelPair,
-    base_in: tuple[t.Tensor, t.Tensor, t.Tensor],
-    ablation_in: tuple[t.Tensor, t.Tensor, t.Tensor],
+    model_pair: BaseModelPair,
+    base_in: tuple[Tensor, Tensor, Tensor],
+    ablation_in: tuple[Tensor, Tensor, Tensor],
     node: LLNode,
-    hook_fn: callable,
-    atol=5e-2,
-    verbose=False,
+    hook_fn: Callable[[Tensor, HookPoint], Tensor],
+    atol: float = 5e-2,
+    verbose: bool = False,
     categorical_metric: Categorical_Metric = Categorical_Metric.ACCURACY,
-):  # TODO: change name to reflect that it's not just for resampling
+) -> float:  
     base_x, base_y = base_in[0:2]
     ablation_x, ablation_y = ablation_in[0:2]
     ll_out = do_intervention(model_pair, base_x, ablation_x, node, hook_fn)
@@ -181,9 +183,9 @@ def check_causal_effect(
     batch_size: int = 256,
     node_type: Literal["a", "c", "n", "individual_c"] = "a",
     categorical_metric: Categorical_Metric = Categorical_Metric.ACCURACY,
-    hook_maker: callable = None,
+    hook_maker: Optional[Callable] = None,
     verbose: bool = False,
-):
+) -> dict[LLNode, float]:
     assert node_type in [
         "a",
         "c",
@@ -213,7 +215,7 @@ def check_causal_effect(
             hook_fns[node] = hook_maker(node)
         else:
             hook_fns[node] = model_pair.make_ll_ablation_hook(node)
-        results[node] = 0
+        results[node] = 0.
 
     loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
     for base_in, ablation_in in tqdm(loader):
@@ -231,7 +233,11 @@ def check_causal_effect(
     return results
 
 
-def get_mean_cache(model, dataset: Dataset, batch_size=8):
+def get_mean_cache(
+        model: BaseModelPair | HookedTransformer, 
+        dataset: IITDataset, 
+        batch_size: int = 8
+        ) -> dict[str, Tensor]:
     loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
     mean_cache = {}
     for batch in tqdm(loader):
@@ -253,18 +259,21 @@ def get_mean_cache(model, dataset: Dataset, batch_size=8):
 
 def make_ablation_hook(
     node: LLNode,
-    mean_cache: dict[str, t.Tensor],
+    mean_cache: Optional[dict[str, Tensor]] = None,
     use_mean_cache: bool = True,
-) -> callable:
+) -> Callable[[Tensor, HookPoint], Tensor]:
     if node.subspace is not None:
         raise NotImplementedError("Subspace not supported yet.")
 
-    def zero_hook(hook_point_out: t.Tensor, hook: HookPoint) -> t.Tensor:
+    def zero_hook(hook_point_out: Tensor, hook: HookPoint) -> Tensor:
         hook_point_out[node.index.as_index] = 0
         return hook_point_out
 
-    def mean_hook(hook_point_out: t.Tensor, hook: HookPoint) -> t.Tensor:
-        cached_tensor = mean_cache[node.name]
+    def mean_hook(hook_point_out: Tensor, hook: HookPoint) -> Tensor:
+        if isinstance(mean_cache, dict):
+            cached_tensor = mean_cache[node.name]
+        else:
+            raise ValueError("mean_cache must be a dict when use_mean_cache is True")
         hook_point_out[node.index.as_index] = cached_tensor[node.index.as_index]
         return hook_point_out
 
@@ -274,13 +283,12 @@ def make_ablation_hook(
 
 
 def ablate_nodes(
-    model_pair: IITModelPair,
-    base_input: tuple[t.Tensor, t.Tensor, t.Tensor],
-    fwd_hooks: List[tuple[str, callable]],
-    atol=5e-2,
-    relative_change=True,
-    verbose=False,
-):
+    model_pair: BaseModelPair,
+    base_input: tuple[Tensor, Tensor, Tensor],
+    fwd_hooks: List[tuple[str, Callable]],
+    atol: float = 5e-2,
+    relative_change: bool = True
+) -> Tensor:
     """
     Returns 1 - accuracy of the model after ablating the nodes in fwd_hooks.
     Args:
@@ -333,13 +341,13 @@ def ablate_nodes(
 
 
 def get_causal_effects_for_all_nodes(
-    model_pair,
-    uni_test_set,
-    batch_size=256,
-    use_mean_cache=True,
-    categorical_metric=Categorical_Metric.ACCURACY,
-    individual_nodes=True,
-):
+    model_pair: BaseModelPair,
+    uni_test_set: IITUniqueDataset,
+    batch_size: int = 256,
+    use_mean_cache: bool = True,
+    categorical_metric: Categorical_Metric = Categorical_Metric.ACCURACY,
+    individual_nodes: bool = True,
+) -> tuple[dict[LLNode, float], dict[LLNode, float]]:
     mean_cache = None
     if use_mean_cache:
         mean_cache = get_mean_cache(model_pair, uni_test_set, batch_size=batch_size)
@@ -347,17 +355,13 @@ def get_causal_effects_for_all_nodes(
         model_pair,
         uni_test_set,
         node_type="n",
-        verbose=False,
         mean_cache=mean_cache,
-        categorical_metric=categorical_metric,
     )
     za_result_in_circuit = check_causal_effect_on_ablation(
         model_pair,
         uni_test_set,
         node_type="c" if not individual_nodes else "individual_c",
-        verbose=False,
         mean_cache=mean_cache,
-        categorical_metric=categorical_metric,
     )
     return za_result_not_in_circuit, za_result_in_circuit
 
@@ -367,10 +371,8 @@ def check_causal_effect_on_ablation(
     dataset: IITDataset,
     batch_size: int = 256,
     node_type: str = "a",
-    mean_cache: dict[str, t.Tensor] = None,
-    categorical_metric: Categorical_Metric = Categorical_Metric.ACCURACY,
-    verbose: bool = False,
-):
+    mean_cache: Optional[dict[str, Tensor]] = None,
+) -> dict[LLNode, float]:
     use_mean_cache = True if mean_cache else False
     assert node_type in [
         "a",
@@ -398,20 +400,23 @@ def check_causal_effect_on_ablation(
 
     for node in all_nodes:
         hookers[node] = make_ablation_hook(node, mean_cache, use_mean_cache)
-        results[node] = 0
+        results[node] = 0.
 
     loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
     for batch in tqdm(loader):
         for node, hooker in hookers.items():
-            results[node] += ablate_nodes(model_pair, batch, [(node.name, hooker)])
+            results[node] += ablate_nodes(model_pair, batch, [(node.name, hooker)]).item()
 
     for node, result in results.items():
         results[node] = result / len(loader)
     return results
 
 
-def make_dataframe_of_results(result_not_in_circuit, result_in_circuit):
-    def create_name(node):
+def make_dataframe_of_results(
+        result_not_in_circuit: dict[LLNode, float], 
+        result_in_circuit: dict[LLNode, float]
+        ) -> pd.DataFrame:
+    def create_name(node: LLNode) -> str:
         if "mlp" in node.name:
             return node.name
         if node.index is not None and node.index != index.Ix[[None]]:
@@ -434,12 +439,12 @@ def make_dataframe_of_results(result_not_in_circuit, result_in_circuit):
 
 
 def make_combined_dataframe_of_results(
-    result_not_in_circuit,
-    result_in_circuit,
-    za_result_not_in_circuit,
-    za_result_in_circuit,
+    result_not_in_circuit: dict[LLNode, float],
+    result_in_circuit: dict[LLNode, float],
+    za_result_not_in_circuit: dict[LLNode, float],
+    za_result_in_circuit: dict[LLNode, float],
     use_mean_cache: bool = False,
-):
+) -> pd.DataFrame:
     df = make_dataframe_of_results(result_not_in_circuit, result_in_circuit)
     df2 = make_dataframe_of_results(za_result_not_in_circuit, za_result_in_circuit)
     df2_causal_effect = df2.pop("causal effect")
@@ -457,12 +462,11 @@ def get_circuit_score(
     model_pair: BaseModelPair,
     dataset: IITDataset,
     nodes_to_ablate: List[LLNode],
-    mean_cache: Dict[str, t.Tensor] = None,
+    mean_cache: Optional[Dict[str, Tensor]] = None,
     batch_size: int = 256,
     use_mean_cache: bool = False,
     relative_change: bool = True,
-    verbose: bool = False,
-):
+) -> float:
     """
     Returns the accuracy of the model after ablating the nodes in nodes_to_ablate.
     Defaults to zero ablation.
@@ -485,15 +489,17 @@ def get_circuit_score(
                 model_pair,
                 base_input,
                 fwd_hooks,
-                verbose=verbose,
                 relative_change=relative_change,
             )
     return result / len(loader)
 
 
 def save_result(
-    df: pd.DataFrame, save_dir: str, model_pair: BaseModelPair = None, suffix=""
-):
+    df: pd.DataFrame, 
+    save_dir: str, 
+    model_pair: Optional[BaseModelPair] = None, 
+    suffix: str = ""
+) -> None:
     os.makedirs(save_dir, exist_ok=True)
     try:
         dfi.export(df, f"{save_dir}/results{suffix}.png")
