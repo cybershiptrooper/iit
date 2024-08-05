@@ -335,7 +335,7 @@ def ablate_nodes(
         )
         changed_result = (~ll_unchanged).cpu().float() * accuracy
     if relative_change:
-        return changed_result.sum().item() / (accuracy.float().sum().item() + 1e-6)
+        return changed_result.sum() / (accuracy.float().sum() + 1e-6)
 
     return (~ll_unchanged).cpu().float().mean()
 
