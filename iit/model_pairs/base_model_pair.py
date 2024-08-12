@@ -1,5 +1,6 @@
+import os
 from abc import ABC, abstractmethod
-from typing import Any, Callable, final, Type
+from typing import Any, Callable, final, Type, Optional
 
 import numpy as np
 import torch as t
@@ -8,6 +9,7 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm import tqdm # type: ignore
 from transformer_lens.hook_points import HookedRootModule, HookPoint # type: ignore
+from IPython.display import clear_output
 
 import wandb # type: ignore
 from iit.model_pairs.ll_model import LLModel
@@ -17,6 +19,24 @@ from iit.utils.correspondence import Correspondence
 from iit.utils.iit_dataset import IITDataset
 from iit.utils.index import Ix, TorchIndex
 from iit.utils.metric import MetricStoreCollection, MetricType
+
+def in_notebook():
+    try:
+        # This will only work in Jupyter notebooks
+        shell = get_ipython().__class__.__name__
+        if shell == 'ZMQInteractiveShell':
+            return True  # Jupyter notebook or qtconsole
+        elif shell == 'TerminalInteractiveShell':
+            return False  # Terminal running IPython
+        else:
+            return False  # Other types of interactive shells
+    except NameError:
+        return False  # Probably standard Python interpreter
+    
+if in_notebook():
+    from tqdm.notebook import tqdm
+else:
+    from tqdm import tqdm
 
 
 class BaseModelPair(ABC):
@@ -246,11 +266,16 @@ class BaseModelPair(ABC):
         optimizer = optimizer_cls(self.ll_model.parameters(), **optimizer_kwargs)
         loss_fn = self.loss_fn
         scheduler_cls = training_args.get("lr_scheduler", None)
+        scheduler_kwargs = training_args.get("scheduler_kwargs", {})
         if scheduler_cls == t.optim.lr_scheduler.ReduceLROnPlateau:
             mode = training_args.get("scheduler_mode", "max")
-            lr_scheduler = scheduler_cls(optimizer, mode=mode, factor=0.1, patience=10)
+            if 'patience' not in scheduler_kwargs:
+                scheduler_kwargs['patience'] = 10
+            if 'factor' not in scheduler_kwargs:
+                scheduler_kwargs['factor'] = 0.1
+            lr_scheduler = scheduler_cls(optimizer, mode=mode, **scheduler_kwargs)
         elif scheduler_cls:
-            lr_scheduler = scheduler_cls(optimizer)
+            lr_scheduler = scheduler_cls(optimizer, **scheduler_kwargs)
 
         if use_wandb and not wandb.run:
             wandb.init(project="iit", name=wandb_name_suffix, 
@@ -260,20 +285,33 @@ class BaseModelPair(ABC):
             wandb.config.update(training_args)
             wandb.config.update({"method": self.wandb_method})
             wandb.run.log_code() # type: ignore
+        
+        epoch_pbar = tqdm(range(epochs), desc="Training Epochs")
+        batch_pbar = tqdm(total=len(train_loader), desc="Training Batches")
+        for epoch in range(epochs):
+            batch_pbar.reset()
 
-        for epoch in tqdm(range(epochs)):
-            train_metrics = self._run_train_epoch(train_loader, loss_fn, optimizer)
+            train_metrics = self._run_train_epoch(train_loader, loss_fn, optimizer, batch_pbar)
             test_metrics = self._run_eval_epoch(test_loader, loss_fn)
             if scheduler_cls:
                 self.step_scheduler(lr_scheduler, test_metrics)
             self.test_metrics = test_metrics
             self.train_metrics = train_metrics
-            self._print_and_log_metrics(
-                epoch, MetricStoreCollection(train_metrics.metrics + test_metrics.metrics), use_wandb
+            current_epoch_log = self._print_and_log_metrics(
+                epoch, 
+                MetricStoreCollection(train_metrics.metrics + test_metrics.metrics), 
+                optimizer, 
+                use_wandb=use_wandb,
             )
+
+            epoch_pbar.update(1)
+            epoch_pbar.set_postfix_str(current_epoch_log.strip(', '))
+            epoch_pbar.set_description(f"Epoch {epoch + 1}/{epochs}")
 
             if early_stop and self._check_early_stop_condition(test_metrics):
                 break
+        epoch_pbar.close()
+        batch_pbar.close()
 
         if use_wandb:
             wandb.log({"final epoch": epoch})
@@ -298,16 +336,16 @@ class BaseModelPair(ABC):
         self, 
         loader: DataLoader, 
         loss_fn: Callable[[Tensor, Tensor], Tensor],
-        optimizer: t.optim.Optimizer
+        optimizer: t.optim.Optimizer,
+        pbar: tqdm
         ) -> MetricStoreCollection:
         self.ll_model.train()
         train_metrics = self.make_train_metrics()
-        for i, (base_input, ablation_input) in tqdm(
-            enumerate(loader), total=len(loader)
-        ):
+        for i, (base_input, ablation_input) in enumerate(loader):
             train_metrics.update(
                 self.run_train_step(base_input, ablation_input, loss_fn, optimizer)
             )
+            pbar.update(1)
         return train_metrics
 
     @final
@@ -345,13 +383,22 @@ class BaseModelPair(ABC):
     def _print_and_log_metrics(
         epoch: int, 
         metrics: MetricStoreCollection, 
-        use_wandb: bool = False
+        optimizer: t.optim.Optimizer,
+        use_wandb: bool = False,
+        print_metrics: bool = True,
         ) -> None:
-        print(f"\nEpoch {epoch}:", end=" ")
+        
+        # Print the current epoch's metrics
+        current_epoch_log = f"lr: {optimizer.param_groups[0]['lr']:.2e}, "
         if use_wandb:
             wandb.log({"epoch": epoch})
+            wandb.log({"lr": optimizer.param_groups[0]["lr"]})
+        
         for metric in metrics:
-            print(metric, end=", ")
+            current_epoch_log += f"{metric}, "
             if use_wandb:
                 wandb.log({metric.get_name(): metric.get_value()})
-        print()
+        if print_metrics:
+            tqdm.write(f'Epoch {epoch+1}: {current_epoch_log.strip(", ")}')
+        
+        return current_epoch_log

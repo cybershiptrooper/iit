@@ -23,8 +23,6 @@ class IITModelPair(BaseModelPair):
         self.hl_model.requires_grad_(False)
 
         self.corr = corr
-        print(self.hl_model.hook_dict)
-        print(self.corr.keys())
         assert all([str(k) in self.hl_model.hook_dict for k in self.corr.keys()])
         default_training_args = {
             "batch_size": 256,
@@ -34,6 +32,7 @@ class IITModelPair(BaseModelPair):
             "lr_scheduler": None,
             "scheduler_val_metric": ["val/accuracy", "val/IIA"],
             "scheduler_mode": "max",
+            "scheduler_kwargs": {},
             "clip_grad_norm": 1.0,
             "seed": 0,
             "detach_while_caching": True,
