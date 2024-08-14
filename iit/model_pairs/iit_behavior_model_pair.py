@@ -56,8 +56,9 @@ class IITBehaviorModelPair(IITModelPair):
             ) -> Tensor:
         base_x, base_y = base_input[0:2]
         output = self.ll_model(base_x)
-        behavior_loss = loss_fn(output, base_y)
-        return behavior_loss
+        indx = self.get_label_idxs()
+        behaviour_loss = loss_fn(output[indx.as_index], base_y[indx.as_index].to(output.device))
+        return behaviour_loss
 
     def step_on_loss(self, loss: Tensor, optimizer: t.optim.Optimizer) -> None:
         optimizer.zero_grad()
@@ -110,7 +111,7 @@ class IITBehaviorModelPair(IITModelPair):
         label_idx = self.get_label_idxs()
         hl_node = self.sample_hl_name()
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
-        hl_output.to(ll_output.device)
+        hl_output = hl_output.to(ll_output.device)
         hl_output = hl_output[label_idx.as_index]
         ll_output = ll_output[label_idx.as_index]
         if self.hl_model.is_categorical():
@@ -130,10 +131,11 @@ class IITBehaviorModelPair(IITModelPair):
         output = self.ll_model(base_x)
         if self.hl_model.is_categorical():
             top1 = t.argmax(output, dim=-1)
-            if output.shape == base_y.shape:
+            if output.shape[-1] == base_y.shape[-1]:
                 # To handle the case when labels are one-hot
                 # TODO: is there a better way?
                 base_y = t.argmax(base_y, dim=-1)
+            base_y = base_y.to(top1.device)
             accuracy = (top1 == base_y).float().mean()
         else:
             accuracy = ((output - base_y).abs() < atol).float().mean()

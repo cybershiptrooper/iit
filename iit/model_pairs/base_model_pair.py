@@ -197,7 +197,7 @@ class BaseModelPair(ABC):
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
         label_idx = self.get_label_idxs()
         # IIT loss is only computed on the tokens we care about
-        loss = loss_fn(ll_output[label_idx.as_index], hl_output[label_idx.as_index])
+        loss = loss_fn(ll_output[label_idx.as_index].to(hl_output.device), hl_output[label_idx.as_index])
         return loss
 
     def clip_grad_fn(self) -> None:
@@ -298,9 +298,9 @@ class BaseModelPair(ABC):
             self.test_metrics = test_metrics
             self.train_metrics = train_metrics
             current_epoch_log = self._print_and_log_metrics(
-                epoch, 
-                MetricStoreCollection(train_metrics.metrics + test_metrics.metrics), 
-                optimizer, 
+                epoch=epoch, 
+                metrics=MetricStoreCollection(train_metrics.metrics + test_metrics.metrics), 
+                optimizer=optimizer, 
                 use_wandb=use_wandb,
             )
 
@@ -310,6 +310,8 @@ class BaseModelPair(ABC):
 
             if early_stop and self._check_early_stop_condition(test_metrics):
                 break
+        
+            self._run_epoch_extras(epoch_number=epoch+1)
         epoch_pbar.close()
         batch_pbar.close()
 
@@ -379,8 +381,8 @@ class BaseModelPair(ABC):
         return True
 
     @final
-    @staticmethod
     def _print_and_log_metrics(
+        self,
         epoch: int, 
         metrics: MetricStoreCollection, 
         optimizer: t.optim.Optimizer,
@@ -390,15 +392,25 @@ class BaseModelPair(ABC):
         
         # Print the current epoch's metrics
         current_epoch_log = f"lr: {optimizer.param_groups[0]['lr']:.2e}, "
+        for k in self.training_args.keys():
+            if 'weight' in k and 'schedule' not in k:
+                current_epoch_log += f"{k}: {self.training_args[k]:.2e}, "
         if use_wandb:
             wandb.log({"epoch": epoch})
             wandb.log({"lr": optimizer.param_groups[0]["lr"]})
         
         for metric in metrics:
-            current_epoch_log += f"{metric}, "
+            if metric.type == MetricType.ACCURACY:
+                current_epoch_log += f"{metric.get_name()}: {metric.get_value():.2f}, "
+            else:
+                current_epoch_log += f"{metric.get_name()}: {metric.get_value():.2e}, "
             if use_wandb:
                 wandb.log({metric.get_name(): metric.get_value()})
         if print_metrics:
             tqdm.write(f'Epoch {epoch+1}: {current_epoch_log.strip(", ")}')
         
         return current_epoch_log
+
+    @abstractmethod
+    def _run_epoch_extras(self, epoch_number: int) -> None:
+        pass
