@@ -29,6 +29,7 @@ class StrictIITModelPair(IITBehaviorModelPair):
             "behavior_weight": 1.0,
             "strict_weight": 1.0,
             "clip_grad_norm": 1.0,
+            "siit_sampling" : "individual", # individual, sample_all, all
         }
         training_args = {**default_training_args, **training_args}
         super().__init__(hl_model, ll_model, corr=corr, training_args=training_args)
@@ -52,8 +53,17 @@ class StrictIITModelPair(IITBehaviorModelPair):
             IITBehaviorModelPair.make_test_metrics().metrics + [MetricStore("val/strict_accuracy", MetricType.ACCURACY)],
         )
 
-    def sample_ll_node(self) -> LLNode:
-        return self.rng.choice(np.array(self.nodes_not_in_circuit, dtype=object))
+    def sample_ll_nodes(self) -> list[LLNode]:
+        if self.training_args['siit_sampling'] == 'individual':
+            ll_nodes = [self.rng.choice(np.array(self.nodes_not_in_circuit, dtype=object)),]
+        elif self.training_args['siit_sampling'] == 'sample_all':
+            importance = t.randint(0, 2, (len(self.nodes_not_in_circuit),)).to(bool).tolist()
+            ll_nodes = [node for node, imp in zip(self.nodes_not_in_circuit, importance) if imp]
+        elif self.training_args['siit_sampling'] == 'all':
+            ll_nodes = self.nodes_not_in_circuit
+        else:
+            raise ValueError(f"Unexpected SIIT sampling mode: {self.training_args['siit_sampling']}")
+        return ll_nodes
     
     def get_SIIT_loss_over_batch(
             self,
@@ -63,11 +73,14 @@ class StrictIITModelPair(IITBehaviorModelPair):
     ) -> Tensor:
         base_x, base_y = base_input[0:2]
         ablation_x, _ = ablation_input[0:2]
-        ll_node = self.sample_ll_node()
+        ll_nodes = self.sample_ll_nodes()
         _, cache = self.ll_model.run_with_cache(ablation_x)
         self.ll_cache = cache
+        hooks = []
+        for ll_node in ll_nodes:
+            hooks.append((ll_node.name, self.make_ll_ablation_hook(ll_node)))
         out = self.ll_model.run_with_hooks(
-            base_x, fwd_hooks=[(ll_node.name, self.make_ll_ablation_hook(ll_node))]
+            base_x, fwd_hooks=hooks
         )
         # print(out.shape, base_y.shape)
         label_idx = self.get_label_idxs()

@@ -109,32 +109,37 @@ class IITBehaviorModelPair(IITModelPair):
 
         # compute IIT loss and accuracy
         label_idx = self.get_label_idxs()
-        hl_node = self.sample_hl_name()
-        hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
-        hl_output = hl_output.to(ll_output.device)
-        hl_output = hl_output[label_idx.as_index]
-        ll_output = ll_output[label_idx.as_index]
-        if self.hl_model.is_categorical():
-            loss = loss_fn(ll_output, hl_output)
-            if ll_output.shape == hl_output.shape:
-                # To handle the case when labels are one-hot
-                hl_output = t.argmax(hl_output, dim=-1)
-            top1 = t.argmax(ll_output, dim=-1)
-            accuracy = (top1 == hl_output).float().mean()
-            IIA = accuracy.item()
-        else:
-            loss = loss_fn(ll_output, hl_output)
-            IIA = ((ll_output - hl_output).abs() < atol).float().mean().item()
+        #don't just sample one HL node, compute IIA for all HL nodes and average.
+        iias = []
+        for hl_node in self.corr.keys():
+        # hl_node = self.sample_hl_name()
+            hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
+            hl_output = hl_output.to(ll_output.device)
+            hl_output = hl_output[label_idx.as_index]
+            ll_output = ll_output[label_idx.as_index]
+            if self.hl_model.is_categorical():
+                loss = loss_fn(ll_output, hl_output)
+                if ll_output.shape == hl_output.shape:
+                    # To handle the case when labels are one-hot
+                    hl_output = t.argmax(hl_output, dim=-1)
+                top1 = t.argmax(ll_output, dim=-1)
+                accuracy = (top1 == hl_output).float().mean()
+                IIA = accuracy.item()
+            else:
+                loss = loss_fn(ll_output, hl_output)
+                IIA = ((ll_output - hl_output).abs() < atol).float().mean().item()
+            iias.append(IIA)
+        IIA = sum(iias) / len(iias)
 
         # compute behavioral accuracy
         base_x, base_y = base_input[0:2]
-        output = self.ll_model(base_x)
+        output = self.ll_model(base_x)[label_idx.as_index] #convert ll logits -> one-hot max label
         if self.hl_model.is_categorical():
             top1 = t.argmax(output, dim=-1)
             if output.shape[-1] == base_y.shape[-1]:
                 # To handle the case when labels are one-hot
                 # TODO: is there a better way?
-                base_y = t.argmax(base_y, dim=-1)
+                base_y = t.argmax(base_y, dim=-1).squeeze()
             base_y = base_y.to(top1.device)
             accuracy = (top1 == base_y).float().mean()
         else:

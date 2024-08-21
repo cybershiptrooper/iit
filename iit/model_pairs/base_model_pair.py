@@ -242,7 +242,6 @@ class BaseModelPair(ABC):
         epochs: int = 1000,
         use_wandb: bool = False,
         wandb_name_suffix: str = "",
-        optimizer_kwargs: dict = {},
     ) -> None:
         training_args = self.training_args
         print(f"{training_args=}")
@@ -262,8 +261,7 @@ class BaseModelPair(ABC):
 
         early_stop = training_args["early_stop"]
 
-        optimizer_kwargs['lr'] = training_args["lr"]
-        optimizer = optimizer_cls(self.ll_model.parameters(), **optimizer_kwargs)
+        optimizer = optimizer_cls(self.ll_model.parameters(), **training_args['optimizer_kwargs'])
         loss_fn = self.loss_fn
         scheduler_cls = training_args.get("lr_scheduler", None)
         scheduler_kwargs = training_args.get("scheduler_kwargs", {})
@@ -285,35 +283,36 @@ class BaseModelPair(ABC):
             wandb.config.update(training_args)
             wandb.config.update({"method": self.wandb_method})
             wandb.run.log_code() # type: ignore
-        
-        epoch_pbar = tqdm(range(epochs), desc="Training Epochs")
-        batch_pbar = tqdm(total=len(train_loader), desc="Training Batches")
-        for epoch in range(epochs):
-            batch_pbar.reset()
 
-            train_metrics = self._run_train_epoch(train_loader, loss_fn, optimizer, batch_pbar)
-            test_metrics = self._run_eval_epoch(test_loader, loss_fn)
-            if scheduler_cls:
-                self.step_scheduler(lr_scheduler, test_metrics)
-            self.test_metrics = test_metrics
-            self.train_metrics = train_metrics
-            current_epoch_log = self._print_and_log_metrics(
-                epoch=epoch, 
-                metrics=MetricStoreCollection(train_metrics.metrics + test_metrics.metrics), 
-                optimizer=optimizer, 
-                use_wandb=use_wandb,
-            )
+    
+        # Set seed before iterating on loaders for reproduceablility.
+        t.manual_seed(training_args["seed"])
+        with tqdm(range(epochs), desc="Training Epochs") as epoch_pbar:
+            with tqdm(total=len(train_loader), desc="Training Batches") as batch_pbar:
+                for epoch in range(epochs):
+                    batch_pbar.reset()
 
-            epoch_pbar.update(1)
-            epoch_pbar.set_postfix_str(current_epoch_log.strip(', '))
-            epoch_pbar.set_description(f"Epoch {epoch + 1}/{epochs}")
+                    train_metrics = self._run_train_epoch(train_loader, loss_fn, optimizer, batch_pbar)
+                    test_metrics = self._run_eval_epoch(test_loader, loss_fn)
+                    if scheduler_cls:
+                        self.step_scheduler(lr_scheduler, test_metrics)
+                    self.test_metrics = test_metrics
+                    self.train_metrics = train_metrics
+                    current_epoch_log = self._print_and_log_metrics(
+                        epoch=epoch, 
+                        metrics=MetricStoreCollection(train_metrics.metrics + test_metrics.metrics), 
+                        optimizer=optimizer, 
+                        use_wandb=use_wandb,
+                    )
 
-            if early_stop and self._check_early_stop_condition(test_metrics):
-                break
-        
-            self._run_epoch_extras(epoch_number=epoch+1)
-        epoch_pbar.close()
-        batch_pbar.close()
+                    epoch_pbar.update(1)
+                    epoch_pbar.set_postfix_str(current_epoch_log.strip(', '))
+                    epoch_pbar.set_description(f"Epoch {epoch + 1}/{epochs}")
+
+                    if early_stop and self._check_early_stop_condition(test_metrics):
+                        break
+                
+                    self._run_epoch_extras(epoch_number=epoch+1)
 
         if use_wandb:
             wandb.log({"final epoch": epoch})

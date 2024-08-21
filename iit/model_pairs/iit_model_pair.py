@@ -26,21 +26,21 @@ class IITModelPair(BaseModelPair):
         assert all([str(k) in self.hl_model.hook_dict for k in self.corr.keys()])
         default_training_args = {
             "batch_size": 256,
-            "lr": 0.001,
             "num_workers": 0,
             "early_stop": True,
             "lr_scheduler": None,
             "scheduler_val_metric": ["val/accuracy", "val/IIA"],
             "scheduler_mode": "max",
             "scheduler_kwargs": {},
+            "optimizer_kwargs" : {
+                "lr": 0.001,
+            },
             "clip_grad_norm": 1.0,
             "seed": 0,
             "detach_while_caching": True,
-            "iit_weight_schedule" : lambda s, i: s,
-            "strict_weight_schedule" : lambda s, i: s,
-            "behavior_weight_schedule" : lambda s, i: s,
         }
         training_args = {**default_training_args, **training_args}
+        
         if isinstance(ll_model, HookedRootModule):
             ll_model = LLModel.make_from_hooked_transformer(
                 ll_model, detach_while_caching=training_args["detach_while_caching"]
