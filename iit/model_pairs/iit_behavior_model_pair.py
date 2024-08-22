@@ -19,12 +19,12 @@ class IITBehaviorModelPair(IITModelPair):
             training_args: dict = {}
             ):
         default_training_args = {
-            "lr": 0.001,
             "atol": 5e-2,
-            "early_stop": True,
             "use_single_loss": False,
             "iit_weight": 1.0,
             "behavior_weight": 1.0,
+            "iit_weight_schedule" : lambda s, i: s,
+            "behavior_weight_schedule" : lambda s, i: s, 
         }
         training_args = {**default_training_args, **training_args}
         super().__init__(hl_model, ll_model, corr=corr, training_args=training_args)
@@ -159,3 +159,7 @@ class IITBehaviorModelPair(IITModelPair):
         else:
             return super()._check_early_stop_condition(test_metrics)
         return False
+    
+    def _run_epoch_extras(self, epoch_number: int) -> None:
+        self.training_args['iit_weight'] = self.training_args['iit_weight_schedule'](self.training_args['iit_weight'], epoch_number)
+        self.training_args['behavior_weight'] = self.training_args['behavior_weight_schedule'](self.training_args['behavior_weight'], epoch_number)

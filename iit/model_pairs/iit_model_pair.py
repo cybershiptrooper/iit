@@ -127,9 +127,3 @@ class IITModelPair(BaseModelPair):
         loss.backward() # type: ignore
         optimizer.step()
         return {"train/iit_loss": loss.item()}
-
-
-    def _run_epoch_extras(self, epoch_number: int) -> None:
-        self.training_args['iit_weight'] = self.training_args['iit_weight_schedule'](self.training_args['iit_weight'], epoch_number)
-        self.training_args['strict_weight'] = self.training_args['strict_weight_schedule'](self.training_args['strict_weight'], epoch_number)
-        self.training_args['behavior_weight'] = self.training_args['behavior_weight_schedule'](self.training_args['behavior_weight'], epoch_number)

@@ -410,6 +410,6 @@ class BaseModelPair(ABC):
         
         return current_epoch_log
 
-    @abstractmethod
     def _run_epoch_extras(self, epoch_number: int) -> None:
+        """ Optional method for running extra code at the end of each epoch """
         pass
