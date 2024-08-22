@@ -27,9 +27,12 @@ class StrictIITModelPair(IITBehaviorModelPair):
         }
         training_args = {**default_training_args, **training_args}
         super().__init__(hl_model, ll_model, corr=corr, training_args=training_args)
-        self.nodes_not_in_circuit = node_picker.get_nodes_not_in_circuit(
-            self.ll_model, self.corr
-        )
+        self.nodes_not_in_circuit = node_picker.get_nodes_not_in_circuit(self.ll_model, self.corr)
+        assert (
+            self.training_args["iit_weight"] > 0
+            or self.training_args["behavior_weight"] > 0
+            or self.training_args["strict_weight"] > 0
+        ), ValueError("At least one of the losses should be non-zero")
 
     @staticmethod
     def make_train_metrics() -> MetricStoreCollection:
@@ -40,11 +43,12 @@ class StrictIITModelPair(IITBehaviorModelPair):
                 MetricStore("train/strict_loss", MetricType.LOSS),
             ]
         )
-    
+
     @staticmethod
     def make_test_metrics() -> MetricStoreCollection:
         return MetricStoreCollection(
-            IITBehaviorModelPair.make_test_metrics().metrics + [MetricStore("val/strict_accuracy", MetricType.ACCURACY)],
+            IITBehaviorModelPair.make_test_metrics().metrics
+            + [MetricStore("val/strict_accuracy", MetricType.ACCURACY)],
         )
 
     def sample_ll_nodes(self) -> list[LLNode]:
@@ -93,52 +97,45 @@ class StrictIITModelPair(IITBehaviorModelPair):
     ) -> dict:
         use_single_loss = self.training_args["use_single_loss"]
 
-        hl_node = self.sample_hl_name()  # sample a high-level variable to ablate
-        iit_loss = (
-            self.get_IIT_loss_over_batch(base_input, ablation_input, hl_node, loss_fn)
-            * self.training_args["iit_weight"]
-        )
-        if not use_single_loss:
-            self.step_on_loss(iit_loss, optimizer)
+        iit_loss = 0
+        ll_loss = 0
+        behavior_loss = 0
+
+        if self.training_args["iit_weight"] > 0:
+            hl_node = self.sample_hl_name()  # sample a high-level variable to ablate
+            iit_loss = (
+                self.get_IIT_loss_over_batch(base_input, ablation_input, hl_node, loss_fn)
+                * self.training_args["iit_weight"]
+            )
+            if not use_single_loss:
+                self.step_on_loss(iit_loss, optimizer)
 
         # loss for nodes that are not in the circuit
         # should not have causal effect on the high-level output
-        siit_loss = (
+        if self.training_args["strict_weight"] > 0:
+            siit_loss = (
             self.get_SIIT_loss_over_batch(base_input, ablation_input, loss_fn)
             * self.training_args["strict_weight"]
         )
-        # base_x, base_y = base_input[0:2]
-        # ablation_x, ablation_y = ablation_input[0:2]
-        # ll_node = self.sample_ll_node()
-        # _, cache = self.ll_model.run_with_cache(ablation_x)
-        # self.ll_cache = cache
-        # out = self.ll_model.run_with_hooks(
-        #     base_x, fwd_hooks=[(ll_node.name, self.make_ll_ablation_hook(ll_node))]
-        # )
-        # # print(out.shape, base_y.shape)
-        # label_idx = self.get_label_idxs()
-        # ll_loss = (
-        #     loss_fn(out[label_idx.as_index], base_y[label_idx.as_index].to(self.ll_model.cfg.device))
-        #     * self.training_args["strict_weight"]
-        # ) # do this only for the tokens that we care about for IIT
-        if not use_single_loss:
-            self.step_on_loss(siit_loss, optimizer)
+            if not use_single_loss:
+                self.step_on_loss(ll_loss, optimizer)
 
-        behavior_loss = (
-            self.get_behaviour_loss_over_batch(base_input, loss_fn)
-            * self.training_args["behavior_weight"]
-        )
-        if not use_single_loss:
-            self.step_on_loss(behavior_loss, optimizer)
+        if self.training_args["behavior_weight"] > 0:
+            behavior_loss = (
+                self.get_behaviour_loss_over_batch(base_input, loss_fn)
+                * self.training_args["behavior_weight"]
+            )
+            if not use_single_loss:
+                self.step_on_loss(behavior_loss, optimizer)
 
         if use_single_loss:
             total_loss = iit_loss + behavior_loss + siit_loss
             self.step_on_loss(total_loss, optimizer)
 
         return {
-            "train/iit_loss": iit_loss.item(),
-            "train/behavior_loss": behavior_loss.item(),
-            "train/strict_loss": siit_loss.item(),
+            "train/iit_loss": iit_loss.item() if isinstance(iit_loss, Tensor) else iit_loss,
+            "train/behavior_loss": behavior_loss.item() if isinstance(behavior_loss, Tensor) else behavior_loss,
+            "train/strict_loss": siit_loss.item() if isinstance(siit_loss, Tensor) else siit_loss,
         }
 
     def run_eval_step(
@@ -150,7 +147,7 @@ class StrictIITModelPair(IITBehaviorModelPair):
         eval_returns = super().run_eval_step(base_input, ablation_input, loss_fn)
         base_x, base_y = base_input[0:2]
         ablation_x, ablation_y = ablation_input[0:2]
-        
+
         _, cache = self.ll_model.run_with_cache(ablation_x)
         label_idx = self.get_label_idxs()
         base_y = base_y[label_idx.as_index].to(self.ll_model.cfg.device)
@@ -167,7 +164,9 @@ class StrictIITModelPair(IITBehaviorModelPair):
                 top1 = t.argmax(ll_output, dim=-1)
                 accuracy = (top1 == base_y).float().mean().item()
             else:
-                accuracy = ((ll_output - base_y).abs() < self.training_args["atol"]).float().mean().item()
+                accuracy = (
+                    ((ll_output - base_y).abs() < self.training_args["atol"]).float().mean().item()
+                )
             accuracies.append(accuracy)
 
         if len(accuracies) > 0:
@@ -182,7 +181,10 @@ class StrictIITModelPair(IITBehaviorModelPair):
     def _check_early_stop_condition(self, test_metrics: MetricStoreCollection) -> bool:
         metrics_to_check = []
         for metric in test_metrics:
-            if metric.get_name() == "val/strict_accuracy" and self.training_args["strict_weight"] > 0:
+            if (
+                metric.get_name() == "val/strict_accuracy"
+                and self.training_args["strict_weight"] > 0
+            ):
                 metrics_to_check.append(metric)
             if metric.get_name() == "val/accuracy" and self.training_args["behavior_weight"] > 0:
                 metrics_to_check.append(metric)

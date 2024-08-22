@@ -1,3 +1,4 @@
+from argparse import Namespace
 from typing import Callable
 
 import torch as t
@@ -100,7 +101,16 @@ class IOI_HL(HookedRootModule, HLModel):
         self.hook_name_mover = HookPoint()
 
         self.d_vocab = d_vocab
+        self.cfg = Namespace(
+            d_vocab=d_vocab,
+            d_vocab_out=d_vocab,
+            device=t.device("cuda") if t.cuda.is_available() else t.device("cpu")
+        )
         self.setup()
+    
+    @property
+    def device(self) -> t.device:
+        return self.cfg.device
 
     def is_categorical(self) -> bool:
         return True
