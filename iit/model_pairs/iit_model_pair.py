@@ -32,12 +32,14 @@ class IITModelPair(BaseModelPair):
             "scheduler_val_metric": ["val/accuracy", "val/IIA"],
             "scheduler_mode": "max",
             "scheduler_kwargs": {},
-            "optimizer_kwargs" : {
-                "lr": 0.001,
-            },
             "clip_grad_norm": 1.0,
             "seed": 0,
             "detach_while_caching": True,
+            "optimizer_cls": t.optim.Adam,
+            "optimizer_kwargs" : {
+                "lr": 0.001,
+                "betas": (0.9, 0.9)
+            },
         }
         training_args = {**default_training_args, **training_args}
         

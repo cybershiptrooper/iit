@@ -82,7 +82,6 @@ class IITProbeSequentialPair(IITModelPair):
         self,
         train_set: IITDataset,
         test_set: IITDataset,
-        optimizer_cls: Type[t.optim.Optimizer] = t.optim.Adam,
         epochs: int = 1000,
         use_wandb: bool = False,
         wandb_name_suffix: str = "",
@@ -107,9 +106,9 @@ class IITProbeSequentialPair(IITModelPair):
         for p in probes.values():
             params += list(p.parameters())
         optimizer_kwargs['lr'] = training_args["lr"]
-        probe_optimizer = optimizer_cls(params, **optimizer_kwargs)
+        probe_optimizer = training_args['optimizer_cls'](params, **optimizer_kwargs)
 
-        optimizer = optimizer_cls(self.ll_model.parameters(), **optimizer_kwargs)
+        optimizer = training_args['optimizer_cls'](self.ll_model.parameters(), **optimizer_kwargs)
         loss_fn = t.nn.CrossEntropyLoss()
 
         if use_wandb and not wandb.run:

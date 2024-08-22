@@ -238,7 +238,6 @@ class BaseModelPair(ABC):
         self,
         train_set: IITDataset,
         test_set: IITDataset,
-        optimizer_cls: Type[t.optim.Optimizer] = t.optim.Adam,
         epochs: int = 1000,
         use_wandb: bool = False,
         wandb_name_suffix: str = "",
@@ -261,7 +260,7 @@ class BaseModelPair(ABC):
 
         early_stop = training_args["early_stop"]
 
-        optimizer = optimizer_cls(self.ll_model.parameters(), **training_args['optimizer_kwargs'])
+        optimizer = training_args['optimizer_cls'](self.ll_model.parameters(), **training_args['optimizer_kwargs'])
         loss_fn = self.loss_fn
         scheduler_cls = training_args.get("lr_scheduler", None)
         scheduler_kwargs = training_args.get("scheduler_kwargs", {})
