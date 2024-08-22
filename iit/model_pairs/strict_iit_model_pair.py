@@ -55,7 +55,7 @@ class StrictIITModelPair(IITBehaviorModelPair):
         if self.training_args['siit_sampling'] == 'individual':
             ll_nodes = [self.rng.choice(np.array(self.nodes_not_in_circuit, dtype=object)),]
         elif self.training_args['siit_sampling'] == 'sample_all':
-            importance = t.randint(0, 2, (len(self.nodes_not_in_circuit),)).to(bool).tolist()
+            importance = t.randint(0, 2, (len(self.nodes_not_in_circuit),)).to(t.bool).tolist()
             ll_nodes = [node for node, imp in zip(self.nodes_not_in_circuit, importance) if imp]
         elif self.training_args['siit_sampling'] == 'all':
             ll_nodes = self.nodes_not_in_circuit
@@ -97,9 +97,9 @@ class StrictIITModelPair(IITBehaviorModelPair):
     ) -> dict:
         use_single_loss = self.training_args["use_single_loss"]
 
-        iit_loss = 0
-        ll_loss = 0
-        behavior_loss = 0
+        iit_loss = t.zeros(1)
+        siit_loss = t.zeros(1)
+        behavior_loss = t.zeros(1)
 
         if self.training_args["iit_weight"] > 0:
             hl_node = self.sample_hl_name()  # sample a high-level variable to ablate
@@ -118,7 +118,7 @@ class StrictIITModelPair(IITBehaviorModelPair):
             * self.training_args["strict_weight"]
         )
             if not use_single_loss:
-                self.step_on_loss(ll_loss, optimizer)
+                self.step_on_loss(siit_loss, optimizer)
 
         if self.training_args["behavior_weight"] > 0:
             behavior_loss = (

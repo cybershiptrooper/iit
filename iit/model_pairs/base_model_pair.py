@@ -20,10 +20,10 @@ from iit.utils.iit_dataset import IITDataset
 from iit.utils.index import Ix, TorchIndex
 from iit.utils.metric import MetricStoreCollection, MetricType
 
-def in_notebook():
+def in_notebook() -> bool:
     try:
         # This will only work in Jupyter notebooks
-        shell = get_ipython().__class__.__name__
+        shell = get_ipython().__class__.__name__ # type: ignore
         if shell == 'ZMQInteractiveShell':
             return True  # Jupyter notebook or qtconsole
         elif shell == 'TerminalInteractiveShell':
@@ -387,7 +387,7 @@ class BaseModelPair(ABC):
         optimizer: t.optim.Optimizer,
         use_wandb: bool = False,
         print_metrics: bool = True,
-        ) -> None:
+        ) -> str:
         
         # Print the current epoch's metrics
         current_epoch_log = f"lr: {optimizer.param_groups[0]['lr']:.2e}, "
