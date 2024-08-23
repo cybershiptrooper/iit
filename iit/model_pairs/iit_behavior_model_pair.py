@@ -139,12 +139,13 @@ class IITBehaviorModelPair(IITModelPair):
                 iias.append(IIA)
                 losses.append(loss)
             IIA = sum(iias) / len(iias)
-            loss = t.cat(losses).mean()
+            loss = t.stack(losses).mean()
         else:
             raise ValueError(f"Invalid val_IIA_sampling: {self.training_args['val_IIA_sampling']}")
 
         # compute behavioral accuracy
         base_x, base_y = base_input[0:2]
+        base_y = base_y.to(self.ll_model.device) # so that input data doesn't all need to be hogging room on device.
         output = self.ll_model(base_x)
         if self.hl_model.is_categorical():
             top1 = t.argmax(output, dim=-1)
