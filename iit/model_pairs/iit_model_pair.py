@@ -23,22 +23,25 @@ class IITModelPair(BaseModelPair):
         self.hl_model.requires_grad_(False)
 
         self.corr = corr
-        print(self.hl_model.hook_dict)
-        print(self.corr.keys())
         assert all([str(k) in self.hl_model.hook_dict for k in self.corr.keys()])
         default_training_args = {
             "batch_size": 256,
-            "lr": 0.001,
             "num_workers": 0,
             "early_stop": True,
             "lr_scheduler": None,
             "scheduler_val_metric": ["val/accuracy", "val/IIA"],
             "scheduler_mode": "max",
+            "scheduler_kwargs": {},
             "clip_grad_norm": 1.0,
             "seed": 0,
             "detach_while_caching": True,
+            "optimizer_cls": t.optim.Adam,
+            "optimizer_kwargs" : {
+                "lr": 0.001,
+            },
         }
         training_args = {**default_training_args, **training_args}
+        
         if isinstance(ll_model, HookedRootModule):
             ll_model = LLModel.make_from_hooked_transformer(
                 ll_model, detach_while_caching=training_args["detach_while_caching"]

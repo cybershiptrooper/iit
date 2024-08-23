@@ -21,14 +21,8 @@ class StrictIITModelPair(IITBehaviorModelPair):
             training_args: dict = {}
             ):
         default_training_args = {
-            "batch_size": 256,
-            "lr": 0.001,
-            "num_workers": 0,
-            "use_single_loss": False,
-            "iit_weight": 1.0,
-            "behavior_weight": 1.0,
             "strict_weight": 1.0,
-            "clip_grad_norm": 1.0,
+            "siit_sampling" : "individual", # individual, sample_all, all
         }
         training_args = {**default_training_args, **training_args}
         super().__init__(hl_model, ll_model, corr=corr, training_args=training_args)
@@ -56,8 +50,42 @@ class StrictIITModelPair(IITBehaviorModelPair):
             + [MetricStore("val/strict_accuracy", MetricType.ACCURACY)],
         )
 
-    def sample_ll_node(self) -> LLNode:
-        return self.rng.choice(np.array(self.nodes_not_in_circuit, dtype=object))
+    def sample_ll_nodes(self) -> list[LLNode]:
+        if self.training_args['siit_sampling'] == 'individual':
+            ll_nodes = [self.rng.choice(np.array(self.nodes_not_in_circuit, dtype=object)),]
+        elif self.training_args['siit_sampling'] == 'sample_all':
+            importance = t.randint(0, 2, (len(self.nodes_not_in_circuit),)).to(t.bool).tolist()
+            ll_nodes = [node for node, imp in zip(self.nodes_not_in_circuit, importance) if imp]
+        elif self.training_args['siit_sampling'] == 'all':
+            ll_nodes = self.nodes_not_in_circuit
+        else:
+            raise ValueError(f"Unexpected SIIT sampling mode: {self.training_args['siit_sampling']}")
+        return ll_nodes
+    
+    def get_SIIT_loss_over_batch(
+            self,
+            base_input: tuple[Tensor, Tensor, Tensor],
+            ablation_input: tuple[Tensor, Tensor, Tensor],
+            loss_fn: Callable[[Tensor, Tensor], Tensor]
+    ) -> Tensor:
+        base_x, base_y = base_input[0:2]
+        ablation_x, _ = ablation_input[0:2]
+        ll_nodes = self.sample_ll_nodes()
+        _, cache = self.ll_model.run_with_cache(ablation_x)
+        self.ll_cache = cache
+        hooks = []
+        for ll_node in ll_nodes:
+            hooks.append((ll_node.name, self.make_ll_ablation_hook(ll_node)))
+        out = self.ll_model.run_with_hooks(
+            base_x, fwd_hooks=hooks
+        )
+        # print(out.shape, base_y.shape)
+        label_idx = self.get_label_idxs()
+        siit_loss = (
+            loss_fn(out[label_idx.as_index], base_y[label_idx.as_index].to(self.ll_model.cfg.device))
+            * self.training_args["strict_weight"]
+        ) # do this only for the tokens that we care about for IIT
+        return siit_loss
 
     def run_train_step(
         self,
@@ -68,9 +96,9 @@ class StrictIITModelPair(IITBehaviorModelPair):
     ) -> dict:
         use_single_loss = self.training_args["use_single_loss"]
 
-        iit_loss = 0
-        ll_loss = 0
-        behavior_loss = 0
+        iit_loss = t.zeros(1)
+        siit_loss = t.zeros(1)
+        behavior_loss = t.zeros(1)
 
         if self.training_args["iit_weight"] > 0:
             hl_node = self.sample_hl_name()  # sample a high-level variable to ablate
@@ -84,24 +112,12 @@ class StrictIITModelPair(IITBehaviorModelPair):
         # loss for nodes that are not in the circuit
         # should not have causal effect on the high-level output
         if self.training_args["strict_weight"] > 0:
-            base_x, base_y = base_input[0:2]
-            ablation_x, ablation_y = ablation_input[0:2]
-            ll_node = self.sample_ll_node()
-            _, cache = self.ll_model.run_with_cache(ablation_x)
-            self.ll_cache = cache
-            out = self.ll_model.run_with_hooks(
-                base_x, fwd_hooks=[(ll_node.name, self.make_ll_ablation_hook(ll_node))]
-            )
-
-            label_idx = self.get_label_idxs()
-            ll_loss = (
-                loss_fn(
-                    out[label_idx.as_index], base_y[label_idx.as_index].to(self.ll_model.cfg.device)
-                )
-                * self.training_args["strict_weight"]
-            )  # do this only for the tokens that we care about for IIT
+            siit_loss = (
+            self.get_SIIT_loss_over_batch(base_input, ablation_input, loss_fn)
+            * self.training_args["strict_weight"]
+        )
             if not use_single_loss:
-                self.step_on_loss(ll_loss, optimizer)
+                self.step_on_loss(siit_loss, optimizer)
 
         if self.training_args["behavior_weight"] > 0:
             behavior_loss = (
@@ -112,13 +128,13 @@ class StrictIITModelPair(IITBehaviorModelPair):
                 self.step_on_loss(behavior_loss, optimizer)
 
         if use_single_loss:
-            total_loss = iit_loss + behavior_loss + ll_loss
+            total_loss = iit_loss + behavior_loss + siit_loss
             self.step_on_loss(total_loss, optimizer)
 
         return {
-            "train/iit_loss": iit_loss.item() if isinstance(iit_loss, Tensor) else iit_loss,
-            "train/behavior_loss": behavior_loss.item() if isinstance(behavior_loss, Tensor) else behavior_loss,
-            "train/strict_loss": ll_loss.item() if isinstance(ll_loss, Tensor) else ll_loss,
+            "train/iit_loss": iit_loss.item(),
+            "train/behavior_loss": behavior_loss.item(),
+            "train/strict_loss": siit_loss.item(),
         }
 
     def run_eval_step(
