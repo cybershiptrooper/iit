@@ -9,7 +9,6 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm import tqdm # type: ignore
 from transformer_lens.hook_points import HookedRootModule, HookPoint # type: ignore
-from IPython.display import clear_output
 
 import wandb # type: ignore
 from iit.model_pairs.ll_model import LLModel
@@ -19,24 +18,8 @@ from iit.utils.correspondence import Correspondence
 from iit.utils.iit_dataset import IITDataset
 from iit.utils.index import Ix, TorchIndex
 from iit.utils.metric import MetricStoreCollection, MetricType
+from iit.utils.tqdm import tqdm
 
-def in_notebook() -> bool:
-    try:
-        # This will only work in Jupyter notebooks
-        shell = get_ipython().__class__.__name__ # type: ignore
-        if shell == 'ZMQInteractiveShell':
-            return True  # Jupyter notebook or qtconsole
-        elif shell == 'TerminalInteractiveShell':
-            return False  # Terminal running IPython
-        else:
-            return False  # Other types of interactive shells
-    except NameError:
-        return False  # Probably standard Python interpreter
-    
-if in_notebook():
-    from tqdm.notebook import tqdm
-else:
-    from tqdm import tqdm
 
 
 class BaseModelPair(ABC):
@@ -197,7 +180,7 @@ class BaseModelPair(ABC):
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
         label_idx = self.get_label_idxs()
         # IIT loss is only computed on the tokens we care about
-        loss = loss_fn(ll_output[label_idx.as_index].to(hl_output.device), hl_output[label_idx.as_index])
+        loss = loss_fn(ll_output[label_idx.as_index], hl_output[label_idx.as_index])
         return loss
 
     def clip_grad_fn(self) -> None:
@@ -251,6 +234,10 @@ class BaseModelPair(ABC):
         assert isinstance(test_set, IITDataset), ValueError(
             f"test_set is not an instance of IITDataset, but {type(test_set)}"
         )
+        assert self.ll_model.device == self.hl_model.device, ValueError(
+            "ll_model and hl_model are not on the same device"
+        )
+
         train_loader, test_loader = self.make_loaders(
             train_set,
             test_set,
@@ -297,16 +284,13 @@ class BaseModelPair(ABC):
                         self.step_scheduler(lr_scheduler, test_metrics)
                     self.test_metrics = test_metrics
                     self.train_metrics = train_metrics
-                    current_epoch_log = self._print_and_log_metrics(
+                    self._print_and_log_metrics(
                         epoch=epoch, 
                         metrics=MetricStoreCollection(train_metrics.metrics + test_metrics.metrics), 
                         optimizer=optimizer, 
                         use_wandb=use_wandb,
+                        epoch_pbar=epoch_pbar
                     )
-
-                    epoch_pbar.update(1)
-                    epoch_pbar.set_postfix_str(current_epoch_log.strip(', '))
-                    epoch_pbar.set_description(f"Epoch {epoch + 1}/{epochs}")
 
                     if early_stop and self._check_early_stop_condition(test_metrics):
                         break
@@ -386,6 +370,7 @@ class BaseModelPair(ABC):
         optimizer: t.optim.Optimizer,
         use_wandb: bool = False,
         print_metrics: bool = True,
+        epoch_pbar: Optional[tqdm] = None,
         ) -> str:
         
         # Print the current epoch's metrics
@@ -398,14 +383,16 @@ class BaseModelPair(ABC):
             wandb.log({"lr": optimizer.param_groups[0]["lr"]})
         
         for metric in metrics:
-            if metric.type == MetricType.ACCURACY:
-                current_epoch_log += f"{metric.get_name()}: {metric.get_value():.2f}, "
-            else:
-                current_epoch_log += f"{metric.get_name()}: {metric.get_value():.2e}, "
+            current_epoch_log += str(metric) + ", "
             if use_wandb:
                 wandb.log({metric.get_name(): metric.get_value()})
         if print_metrics:
             tqdm.write(f'Epoch {epoch+1}: {current_epoch_log.strip(", ")}')
+        
+        if epoch_pbar is not None:
+            epoch_pbar.update(1)
+            epoch_pbar.set_postfix_str(current_epoch_log.strip(', '))
+            epoch_pbar.set_description(f"Epoch {epoch + 1}")
         
         return current_epoch_log
 

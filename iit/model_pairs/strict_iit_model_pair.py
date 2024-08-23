@@ -22,7 +22,6 @@ class StrictIITModelPair(IITBehaviorModelPair):
             ):
         default_training_args = {
             "strict_weight": 1.0,
-            "strict_weight_schedule" : lambda s, i: s,
             "siit_sampling" : "individual", # individual, sample_all, all
         }
         training_args = {**default_training_args, **training_args}
@@ -133,9 +132,9 @@ class StrictIITModelPair(IITBehaviorModelPair):
             self.step_on_loss(total_loss, optimizer)
 
         return {
-            "train/iit_loss": iit_loss.item() if isinstance(iit_loss, Tensor) else iit_loss,
-            "train/behavior_loss": behavior_loss.item() if isinstance(behavior_loss, Tensor) else behavior_loss,
-            "train/strict_loss": siit_loss.item() if isinstance(siit_loss, Tensor) else siit_loss,
+            "train/iit_loss": iit_loss.item(),
+            "train/behavior_loss": behavior_loss.item(),
+            "train/strict_loss": siit_loss.item(),
         }
 
     def run_eval_step(
@@ -191,8 +190,3 @@ class StrictIITModelPair(IITBehaviorModelPair):
             if metric.get_name() == "val/IIA" and self.training_args["iit_weight"] > 0:
                 metrics_to_check.append(metric)
         return super()._check_early_stop_condition(MetricStoreCollection(metrics_to_check))
-    
-
-    def _run_epoch_extras(self, epoch_number: int) -> None:
-        super()._run_epoch_extras(epoch_number)
-        self.training_args['strict_weight'] = self.training_args['strict_weight_schedule'](self.training_args['strict_weight'], epoch_number)

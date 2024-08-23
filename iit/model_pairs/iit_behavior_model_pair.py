@@ -8,6 +8,7 @@ from iit.model_pairs.iit_model_pair import IITModelPair
 from iit.model_pairs.ll_model import LLModel
 from iit.utils.correspondence import Correspondence
 from iit.utils.metric import MetricStore, MetricStoreCollection, MetricType
+from iit.utils.nodes import HLNode
 
 
 class IITBehaviorModelPair(IITModelPair):
@@ -20,11 +21,10 @@ class IITBehaviorModelPair(IITModelPair):
             ):
         default_training_args = {
             "atol": 5e-2,
-            "use_single_loss": True,
+            "use_single_loss": False,
             "iit_weight": 1.0,
             "behavior_weight": 1.0,
-            "iit_weight_schedule" : lambda s, i: s,
-            "behavior_weight_schedule" : lambda s, i: s, 
+            "val_IIA_sampling": "random", # random or all
         }
         training_args = {**default_training_args, **training_args}
         super().__init__(hl_model, ll_model, corr=corr, training_args=training_args)
@@ -56,8 +56,8 @@ class IITBehaviorModelPair(IITModelPair):
             ) -> Tensor:
         base_x, base_y = base_input[0:2]
         output = self.ll_model(base_x)
-        indx = self.get_label_idxs()
-        behaviour_loss = loss_fn(output[indx.as_index], base_y[indx.as_index].to(output.device))
+        label_indx = self.get_label_idxs()
+        behaviour_loss = loss_fn(output[label_indx.as_index], base_y[label_indx.as_index].to(output.device))
         return behaviour_loss
 
     def step_on_loss(self, loss: Tensor, optimizer: t.optim.Optimizer) -> None:
@@ -109,10 +109,8 @@ class IITBehaviorModelPair(IITModelPair):
 
         # compute IIT loss and accuracy
         label_idx = self.get_label_idxs()
-        #don't just sample one HL node, compute IIA for all HL nodes and average.
-        iias = []
-        for hl_node in self.corr.keys():
-        # hl_node = self.sample_hl_name()
+
+        def get_node_IIT_info(hl_node: HLNode) -> tuple[float, Tensor]:
             hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
             hl_output = hl_output.to(ll_output.device)
             hl_output = hl_output[label_idx.as_index]
@@ -128,8 +126,22 @@ class IITBehaviorModelPair(IITModelPair):
             else:
                 loss = loss_fn(ll_output, hl_output)
                 IIA = ((ll_output - hl_output).abs() < atol).float().mean().item()
-            iias.append(IIA)
-        IIA = sum(iias) / len(iias)
+            return IIA, loss
+        
+        if self.training_args["val_IIA_sampling"] == "random":
+            hl_node = self.sample_hl_name()
+            IIA, loss = get_node_IIT_info(hl_node)
+        elif self.training_args["val_IIA_sampling"] == "all":
+            iias = []
+            losses = []
+            for hl_node in self.corr.keys():
+                IIA, loss = get_node_IIT_info(hl_node)
+                iias.append(IIA)
+                losses.append(loss)
+            IIA = sum(iias) / len(iias)
+            loss = t.cat(losses).mean()
+        else:
+            raise ValueError(f"Invalid val_IIA_sampling: {self.training_args['val_IIA_sampling']}")
 
         # compute behavioral accuracy
         base_x, base_y = base_input[0:2]
@@ -140,7 +152,6 @@ class IITBehaviorModelPair(IITModelPair):
                 # To handle the case when labels are one-hot
                 # TODO: is there a better way?
                 base_y = t.argmax(base_y, dim=-1).squeeze()
-            base_y = base_y.to(top1.device)
             accuracy = (top1 == base_y).float().mean()
         else:
             accuracy = ((output - base_y).abs() < atol).float().mean()
@@ -159,7 +170,3 @@ class IITBehaviorModelPair(IITModelPair):
         else:
             return super()._check_early_stop_condition(test_metrics)
         return False
-    
-    def _run_epoch_extras(self, epoch_number: int) -> None:
-        self.training_args['iit_weight'] = self.training_args['iit_weight_schedule'](self.training_args['iit_weight'], epoch_number)
-        self.training_args['behavior_weight'] = self.training_args['behavior_weight_schedule'](self.training_args['behavior_weight'], epoch_number)

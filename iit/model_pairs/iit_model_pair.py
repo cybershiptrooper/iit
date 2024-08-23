@@ -38,7 +38,6 @@ class IITModelPair(BaseModelPair):
             "optimizer_cls": t.optim.Adam,
             "optimizer_kwargs" : {
                 "lr": 0.001,
-                "betas": (0.9, 0.9)
             },
         }
         training_args = {**default_training_args, **training_args}
