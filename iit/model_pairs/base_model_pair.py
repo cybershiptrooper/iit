@@ -1,6 +1,5 @@
-import os
 from abc import ABC, abstractmethod
-from typing import Any, Callable, final, Type, Optional
+from typing import Any, Callable, final, Optional
 
 import numpy as np
 import torch as t
@@ -32,6 +31,7 @@ class BaseModelPair(ABC):
     wandb_method: str
     rng: np.random.Generator
     dataset_class: 'IITDataset'
+    stopping_epoch: int | None = None
 
     ##########################################
     # Abstract methods you need to implement #
@@ -293,9 +293,8 @@ class BaseModelPair(ABC):
                     )
 
                     if early_stop and self._check_early_stop_condition(test_metrics):
+                        self.stopping_epoch = epoch + 1
                         break
-                
-                    self._run_epoch_extras(epoch_number=epoch+1)
 
         if use_wandb:
             wandb.log({"final epoch": epoch})
@@ -395,7 +394,3 @@ class BaseModelPair(ABC):
             epoch_pbar.set_description(f"Epoch {epoch + 1}")
         
         return current_epoch_log
-
-    def _run_epoch_extras(self, epoch_number: int) -> None:
-        """ Optional method for running extra code at the end of each epoch """
-        pass
