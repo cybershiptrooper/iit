@@ -234,9 +234,9 @@ class BaseModelPair(ABC):
         assert isinstance(test_set, IITDataset), ValueError(
             f"test_set is not an instance of IITDataset, but {type(test_set)}"
         )
-        assert self.ll_model.device == self.hl_model.device, ValueError(
-            "ll_model and hl_model are not on the same device"
-        )
+        # assert self.ll_model.cfg.device == self.hl_model.device, ValueError(
+        #     "ll_model and hl_model are not on the same device"
+        # )
 
         train_loader, test_loader = self.make_loaders(
             train_set,
