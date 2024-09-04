@@ -88,7 +88,12 @@ class IOI_HL(HookedRootModule, HLModel):
     - S-inhibition heads: Inhibit attention of Name Mover Heads to S1 and S2 tokens
     - Name mover heads: Copy all previous names in the sentence
     """
-    def __init__(self, d_vocab: int, names: Tensor):
+    def __init__(
+            self, 
+            d_vocab: int, 
+            names: Tensor, 
+            device: t.device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
+        ):
         super().__init__()
         self.all_nodes_hook = HookPoint()
         self.duplicate_head = DuplicateHead()
@@ -104,7 +109,7 @@ class IOI_HL(HookedRootModule, HLModel):
         self.cfg = Namespace(
             d_vocab=d_vocab,
             d_vocab_out=d_vocab,
-            device=t.device("cuda") if t.cuda.is_available() else t.device("cpu")
+            device=device
         )
         self.setup()
     
