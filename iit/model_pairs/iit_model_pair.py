@@ -34,10 +34,11 @@ class IITModelPair(BaseModelPair):
             "scheduler_kwargs": {},
             "clip_grad_norm": 1.0,
             "seed": 0,
+            "lr": 0.001,
             "detach_while_caching": True,
             "optimizer_cls": t.optim.Adam,
             "optimizer_kwargs" : {
-                "lr": 0.001,
+                # "betas": (0.9, 0.9)
             },
         }
         training_args = {**default_training_args, **training_args}

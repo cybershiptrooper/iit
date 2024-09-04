@@ -21,7 +21,7 @@ class IITBehaviorModelPair(IITModelPair):
     ):
         default_training_args = {
             "atol": 5e-2,
-            "use_single_loss": False,
+            "use_single_loss": True,
             "iit_weight": 1.0,
             "behavior_weight": 1.0,
             "val_IIA_sampling": "random",  # random or all

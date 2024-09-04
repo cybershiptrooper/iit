@@ -247,7 +247,11 @@ class BaseModelPair(ABC):
 
         early_stop = training_args["early_stop"]
 
-        optimizer = training_args['optimizer_cls'](self.ll_model.parameters(), **training_args['optimizer_kwargs'])
+        optimizer = training_args['optimizer_cls'](
+            self.ll_model.parameters(), 
+            lr=training_args["lr"], 
+            **training_args['optimizer_kwargs']
+        )
         loss_fn = self.loss_fn
         scheduler_cls = training_args.get("lr_scheduler", None)
         scheduler_kwargs = training_args.get("scheduler_kwargs", {})
