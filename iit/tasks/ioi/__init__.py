@@ -18,16 +18,21 @@ ioi_cfg = {
 }
 
 
-def make_corr_dict(include_mlp: bool = False, eval: bool = False, use_pos_embed: bool = False) -> dict:
+def make_corr_dict(
+    include_mlp: bool = False, eval: bool = False, use_pos_embed: bool = False
+) -> dict:
     all_attns = [f"blocks.{i}.attn.hook_z" for i in range(ioi_cfg["n_layers"])]
     all_mlps = [f"blocks.{i}.mlp.hook_post" for i in range(ioi_cfg["n_layers"])]
+    attn_idx = Ix[:, :, 1]
     if eval:
-        all_nodes_hook = "blocks.0.hook_resid_pre" if not use_pos_embed else "blocks.0.hook_pos_embed"
+        all_nodes_hook = (
+            "blocks.0.hook_resid_pre" if not use_pos_embed else "blocks.0.hook_pos_embed"
+        )
         return {
-            "hook_duplicate": [[all_attns[1], Ix[[None]], None]],
+            "hook_duplicate": [[all_attns[1], attn_idx, None]],
             # "hook_previous": ["blocks.1.attn.hook_result"],
-            "hook_s_inhibition": [[all_attns[2], Ix[[None]], None]],
-            "hook_name_mover": [[all_attns[4], Ix[[None]], None]],
+            "hook_s_inhibition": [[all_attns[2], attn_idx, None]],
+            "hook_name_mover": [[all_attns[4], attn_idx, None]],
             "all_nodes_hook": (
                 [[all_nodes_hook, Ix[[None]], None], [all_mlps[0], Ix[[None]], None]]
                 if include_mlp
@@ -36,15 +41,14 @@ def make_corr_dict(include_mlp: bool = False, eval: bool = False, use_pos_embed:
             "hook_out": [[f"blocks.{n_layers-1}.hook_resid_post", Ix[[None]], None]],
         }
     ans = {
-        "hook_duplicate": [[all_attns[1], Ix[[None]], None]],
+        "hook_duplicate": [[all_attns[1], attn_idx, None]],
         # "hook_previous": ["blocks.1.attn.hook_result"],
-        "hook_s_inhibition": [[all_attns[2], Ix[[None]], None]],
-        "hook_name_mover": [[all_attns[4], Ix[[None]], None]],
+        "hook_s_inhibition": [[all_attns[2], attn_idx, None]],
+        "hook_name_mover": [[all_attns[4], attn_idx, None]],
     }
     if include_mlp:
         ans["all_nodes_hook"] = [[all_mlps[0], Ix[[None]], None]]
     return ans
-    
 
 
 corr_dict = make_corr_dict(include_mlp=False)

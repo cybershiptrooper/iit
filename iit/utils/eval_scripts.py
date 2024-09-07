@@ -9,7 +9,6 @@ from transformer_lens import HookedTransformer
 from iit.model_pairs.ioi_model_pair import IOI_ModelPair
 from iit.tasks.ioi import (
     make_ioi_dataset_and_hl,
-    NAMES,
     ioi_cfg,
     make_corr_dict,
     suffixes,
@@ -72,7 +71,7 @@ def eval_ioi(args: IOIArgParseNamespace) -> None:
     np.random.seed(0)
     t.manual_seed(0)
     ioi_dataset, hl_model = make_ioi_dataset_and_hl(
-        num_samples, ll_model, NAMES, verbose=True
+        num_samples, ll_model, verbose=True
     )
 
     model_pair = IOI_ModelPair(ll_model=ll_model, hl_model=hl_model, corr=corr)

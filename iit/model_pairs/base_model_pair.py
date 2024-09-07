@@ -359,7 +359,7 @@ class BaseModelPair(ABC):
             if metric.type == MetricType.ACCURACY:
                 got_accuracy_metric = True
                 val = metric.get_value()
-                if isinstance(val, float) and val < 100:
+                if isinstance(val, float) and val < 99.5:
                     return False
         if not got_accuracy_metric:
             raise ValueError("No accuracy metric found in test_metrics!")

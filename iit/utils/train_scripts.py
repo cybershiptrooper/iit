@@ -5,7 +5,6 @@ from iit.utils.iit_dataset import train_test_split
 from iit.model_pairs.base_model_pair import *
 from iit.utils.metric import *
 from iit.tasks.ioi import (
-    NAMES,
     make_ioi_dataset_and_hl,
     make_corr_dict,
     ioi_cfg,
