@@ -36,6 +36,8 @@ def save_model(model_pair: BaseModelPair, args: IOIArgParseNamespace, task: str)
     t.save(ll_model.state_dict(), f"{save_dir}/ll_model_{model_suffix}.pth")
 
     # save training args
+    # remove 'optimizer_cls' key from training args dict
+    training_args.pop("optimizer_cls")
     training_args_file = os.path.join(results_dir, "training_args.json")
     with open(training_args_file, "w") as f:
         json.dump(training_args, f)
