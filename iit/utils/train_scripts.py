@@ -45,7 +45,7 @@ def train_ioi(args: IOIArgParseNamespace) -> IOI_ModelPair:
     ll_model = HookedTransformer(ll_cfg).to(device)
     print("making ioi dataset and hl")
     ioi_dataset, hl_model = make_ioi_dataset_and_hl(
-        num_samples, ll_model, NAMES, device=device, verbose=True
+        num_samples, ll_model, device=device, verbose=True
     )
     print("making IIT dataset")
     train_ioi_dataset, test_ioi_dataset = train_test_split(

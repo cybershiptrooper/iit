@@ -2,20 +2,29 @@ import torch as t
 
 from iit.model_pairs.ll_model import LLModel
 from iit.utils.config import DEVICE
-from .ioi_hl import IOI_HL
+
+from .ioi_config import ALL_TEMPLATES, NAMES, OBJECTS, PLACES
 from .ioi_dataset_tl import IOIDataset, IOIDatasetWrapper
+from .ioi_hl import IOI_HL
+
 
 def make_ioi_dataset_and_hl(
-        num_samples: int, 
-        ll_model: LLModel, 
-        NAMES: list[str], 
-        device: t.device = DEVICE, 
-        verbose: bool = False
-        ) -> tuple[IOIDatasetWrapper, IOI_HL]:
+    num_samples: int,
+    ll_model: LLModel,
+    names: list[str] = NAMES,
+    device: t.device = DEVICE,
+    verbose: bool = False,
+    nouns_dict: dict[str, list[str]] = {
+        "LOCATION": PLACES,
+        "OBJECT": OBJECTS,
+        "PLACE": PLACES,
+    },
+    templates: list[str] = ALL_TEMPLATES,
+) -> tuple[IOIDatasetWrapper, IOI_HL]:
     ioi_dataset_tl = IOIDataset(
-    num_samples=num_samples,
-    tokenizer=ll_model.tokenizer,
-    names=NAMES,
+        num_samples=num_samples,
+        tokenizer=ll_model.tokenizer,
+        names=names,
     )
 
     ioi_names = t.tensor(
@@ -26,14 +35,17 @@ def make_ioi_dataset_and_hl(
     ioi_dataset = IOIDatasetWrapper(
         num_samples=num_samples,
         tokenizer=ll_model.tokenizer,
-        names=NAMES,
-        device=device
+        names=names,
+        device=device,
+        nouns=nouns_dict,
+        templates=templates,
     )
 
     if verbose:
         sentence = ioi_dataset_tl[0]["prompt"]
         detokenised = [
-            ll_model.tokenizer.decode(i, clean_up_tokenization_spaces=True) for i in sentence
+            ll_model.tokenizer.decode(i, clean_up_tokenization_spaces=True)
+            for i in sentence
         ]
         print(sentence, detokenised)
 

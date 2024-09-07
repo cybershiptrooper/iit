@@ -44,9 +44,7 @@ def make_wiki_data_loader(tokenizer: AutoTokenizer, batch_size: int = 8) -> Data
     wiki_data = load_dataset("wikitext", "wikitext-2-v1", split="train")
     print(len(wiki_data))
     dataset = utils.tokenize_and_concatenate(wiki_data, tokenizer)
-    data_loader = DataLoader(
-        dataset, batch_size=batch_size, shuffle=True, drop_last=True
-    )
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
     return data_loader
 
 
@@ -59,9 +57,7 @@ def make_owt_data_loader(tokenizer: AutoTokenizer, batch_size: int = 8) -> DataL
     owt_data = load_dataset("stas/openwebtext-10k", split="train")
     print(len(owt_data))
     dataset = utils.tokenize_and_concatenate(owt_data, tokenizer)
-    data_loader = DataLoader(
-        dataset, batch_size=batch_size, shuffle=True, drop_last=True
-    )
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
     return data_loader
 
 
@@ -75,9 +71,7 @@ def make_pile_data_loader(tokenizer: AutoTokenizer, batch_size: int = 8) -> Data
     pile_data = load_dataset("NeelNanda/pile-10k", split="train")
     print(len(pile_data))
     dataset = utils.tokenize_and_concatenate(pile_data, tokenizer)
-    data_loader = DataLoader(
-        dataset, batch_size=batch_size, shuffle=True, drop_last=True
-    )
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
     return data_loader
 
 
@@ -90,12 +84,8 @@ def make_code_data_loader(tokenizer: AutoTokenizer, batch_size: int = 8) -> Data
     """
     code_data = load_dataset("codeparrot/codeparrot-valid-v2-near-dedup", split="train")
     print(len(code_data))
-    dataset = utils.tokenize_and_concatenate(
-        code_data, tokenizer, column_name="content"
-    )
-    data_loader = DataLoader(
-        dataset, batch_size=batch_size, shuffle=True, drop_last=True
-    )
+    dataset = utils.tokenize_and_concatenate(code_data, tokenizer, column_name="content")
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
     return data_loader
 
 
@@ -111,11 +101,8 @@ DATASET_LOADERS = [
 # %%
 @t.inference_mode()
 def evaluate_on_dataset(
-    model: HookedTransformer, 
-    data_loader: DataLoader, 
-    truncate: int = 100, 
-    device: str = "cuda"
-    ) -> float:
+    model: HookedTransformer, data_loader: DataLoader, truncate: int = 100, device: str = "cuda"
+) -> float:
     running_loss = 0
     total = 0
     for batch in tqdm.tqdm(data_loader):
@@ -130,12 +117,12 @@ def evaluate_on_dataset(
 # %%
 @t.inference_mode()
 def induction_loss(
-    model: HookedTransformer, 
+    model: HookedTransformer,
     tokenizer: Optional[AutoTokenizer] = None,
-    batch_size: int = 4, 
-    subseq_len: int = 384, 
-    prepend_bos: Optional[bool] = None, 
-    device: str = "cuda"
+    batch_size: int = 4,
+    subseq_len: int = 384,
+    prepend_bos: Optional[bool] = None,
+    device: str = "cuda",
 ) -> Tensor:
     """
     Generates a batch of random sequences repeated twice, and measures model performance on the second half. Tests whether a model has induction heads.
@@ -160,9 +147,7 @@ def induction_loss(
         repeated_tokens[:, 0] = tokenizer.bos_token_id
     # Run the model, and extract the per token correct log prob
     logits = model(repeated_tokens, return_type="logits")
-    correct_log_probs = utils.lm_cross_entropy_loss(
-        logits, repeated_tokens, per_token=True
-    )
+    correct_log_probs = utils.lm_cross_entropy_loss(logits, repeated_tokens, per_token=True)
     # Take the loss over the second half of the sequence
     return correct_log_probs[:, subseq_len + 1 :].mean()
 
@@ -170,11 +155,11 @@ def induction_loss(
 # %%
 @t.inference_mode()
 def evaluate(
-    model: HookedTransformer, 
-    truncate: int = 100, 
+    model: HookedTransformer,
+    truncate: int = 100,
     batch_size: int = 8,
-    tokenizer: Optional[AutoTokenizer] = None
-    ) -> Dict[str, float]:
+    tokenizer: Optional[AutoTokenizer] = None,
+) -> Dict[str, float]:
     if tokenizer is None:
         tokenizer = model.tokenizer
     losses = {}
@@ -234,13 +219,24 @@ class IOIDataset(Dataset):
         self.prepend_bos = prepend_bos
         self.device = device
 
-        self.templates = (
-            templates if templates is not None else self.get_default_templates()
-        )
-        # self.max_sentence_length = max(len(self.tokenizer.encode(t)) for t in self.templates)
-        self.max_sentence_length = 17
+        self.templates = templates if templates is not None else self.get_default_templates()
         self.names = names if names is not None else self.get_default_names()
+        # assert all names encoded are of length 1
+        assert all(
+            [len(i) == 1 for i in [tokenizer.encode(" " + i) for i in self.names]]
+        ), ValueError("The dataset only supports names that are encoded to a single token.")
         self.nouns = nouns if nouns is not None else self.get_default_nouns()
+
+        self.max_sentence_length = 0
+        for template in self.templates:
+            for noun_type, noun_list in self.nouns.items():
+                template = template.replace(f"[{noun_type}]", random.choice(noun_list))
+            sample = template.replace("[A]", self.names[0])
+            sample = sample.replace("[B]", self.names[1])
+            prompt = self.tokenizer.encode(sample)
+            if self.prepend_bos:
+                prompt = [self.tokenizer.bos_token_id] + prompt
+            self.max_sentence_length = max(self.max_sentence_length, len(prompt))
 
         self.samples = []
         random.seed(seed)
@@ -258,7 +254,7 @@ class IOIDataset(Dataset):
             prompt = [self.tokenizer.bos_token_id] + prompt
         pad_token = self.tokenizer.pad_token_id
         if pad_token:
-            prompt += [pad_token] * (self.max_sentence_length - len(prompt))
+            prompt = [pad_token] * (self.max_sentence_length - len(prompt)) + prompt
         idx_to_ablate = len(prompt) - 2
 
         return {
@@ -276,18 +272,18 @@ class IOIDataset(Dataset):
         samples: List[Dict[str, str]] = []
 
         # Sample two names without replacement
-        names = random.sample(self.names, 2)
+        names = random.sample(self.names, 3)
         sample = template.replace("[A]", names[0])
         sample = sample.replace("[B]", names[1])
+        sample = sample.replace("[C]", names[2])
         # Prepend spaces to IO and S so that the target is e.g. " Mary" and not "Mary"
         samples.append({"text": sample, "IO": " " + names[0], "S": " " + names[1]})
 
         if symmetric:
             sample_2 = template.replace("[A]", names[1])
             sample_2 = sample_2.replace("[B]", names[0])
-            samples.append(
-                {"text": sample_2, "IO": " " + names[1], "S": " " + names[0]}
-            )
+            sample = sample.replace("[C]", names[2])
+            samples.append({"text": sample_2, "IO": " " + names[1], "S": " " + names[0]})
 
         return samples
 
@@ -314,12 +310,12 @@ class IOIDataset(Dataset):
 
 @t.inference_mode()
 def ioi_eval(
-    model: HookedTransformer, 
-    dataset: Optional[Dataset] = None, 
-    batch_size: int = 8, 
-    num_samples: int = 1000, 
-    tokenizer: Optional[AutoTokenizer] = None, 
-    symmetric: bool = False
+    model: HookedTransformer,
+    dataset: Optional[Dataset] = None,
+    batch_size: int = 8,
+    num_samples: int = 1000,
+    tokenizer: Optional[AutoTokenizer] = None,
+    symmetric: bool = False,
 ) -> Dict[str, float]:
     """Evaluate the Model on the Indirect Object Identification Task.
 
@@ -340,7 +336,7 @@ def ioi_eval(
     if dataset is None:
         dataset = IOIDataset(tokenizer, num_samples=num_samples, symmetric=symmetric)
 
-    def collate(samples: list[dict]) -> dict: #type: ignore 
+    def collate(samples: list[dict]) -> dict:  # type: ignore
         prompts = [sample["prompt"] for sample in samples]
         padded_prompts = t.nn.utils.rnn.pad_sequence(prompts, batch_first=True)
         return {
@@ -350,9 +346,7 @@ def ioi_eval(
             "prompt_length": [p.shape[0] for p in prompts],
         }
 
-    data_loader = DataLoader(
-        dataset, batch_size=batch_size, shuffle=True, collate_fn=collate
-    )
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate)
 
     total_correct = 0
     total_logit_diff = 0
@@ -391,23 +385,22 @@ def ioi_eval(
         "Accuracy": total_correct / dataset_len(dataset),
     }
 
+
 class IOIDatasetWrapper(IOIDataset):
-        
     def get_inputs(self) -> Tensor:
         items = [self.__getitem__(i) for i in range(len(self))]
         inputs = [item[0] for item in items]
         inputs_tensor = t.stack(inputs)
         return inputs_tensor
-    
+
     def get_targets(self) -> list[Tensor]:
         items = [self.__getitem__(i) for i in range(len(self))]
         targets = [item[1] for item in items]
         return targets
-    
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor, Tensor]: # type: ignore 
+
+    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor, Tensor]:  # type: ignore
         x = super().__getitem__(idx)
-        prompt = x['prompt']
+        prompt = x["prompt"]
         y_list = list(prompt[1:])
         y = t.nn.functional.one_hot(t.tensor(y_list), num_classes=self.tokenizer.vocab_size).float()
-        return (x['prompt'][:-1].to(self.device), (y).to(self.device), (x['IO']).to(self.device))
-    
+        return (x["prompt"][:-1].to(self.device), (y).to(self.device), (x["IO"]).to(self.device))

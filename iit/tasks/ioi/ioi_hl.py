@@ -95,6 +95,7 @@ class IOI_HL(HookedRootModule, HLModel):
             device: t.device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
         ):
         super().__init__()
+        assert isinstance(names, Tensor), ValueError(f"Expected a tensor, got {type(names)}")
         self.all_nodes_hook = HookPoint()
         self.duplicate_head = DuplicateHead()
         self.hook_duplicate = HookPoint()

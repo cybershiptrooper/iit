@@ -1,10 +1,19 @@
 from typing import Callable
+
+import numpy as np
 import torch as t
 from torch import Tensor
-from .ioi_hl import DuplicateHead, PreviousHead, SInhibitionHead, NameMoverHead, IOI_HL
-from transformer_lens.hook_points import HookPoint
 from transformer_lens import ActivationCache
-import numpy as np
+from transformer_lens.hook_points import HookPoint
+
+from iit.tasks.ioi.ioi_hl import (
+    IOI_HL,
+    DuplicateHead,
+    NameMoverHead,
+    PreviousHead,
+    SInhibitionHead,
+)
+from tests.test_utils.ioi_utils import make_ioi_test_dataset
 
 IOI_TEST_NAMES = t.tensor([10, 20, 30])
 
@@ -13,7 +22,9 @@ def nonzero_values(a: Tensor) -> Tensor:
     return t.cat((a.nonzero(), a[a != 0][:, None]), dim=-1)
 
 
-def make_hook(corrupted_cache: ActivationCache, hook_name: str) -> Callable[[Tensor, HookPoint], Tensor]:
+def make_hook(
+    corrupted_cache: ActivationCache, hook_name: str
+) -> Callable[[Tensor, HookPoint], Tensor]:
     def hook_fn(hook_point_out: Tensor, hook: HookPoint) -> Tensor:
         out = hook_point_out.clone()
         out = corrupted_cache[hook_name]
@@ -109,9 +120,7 @@ def test_duplicate_head_patching() -> None:
             p_corrupted = p_corrupted_.clone()
             p_corrupted[p_corrupted == -1] = name_a
             p_corrupted[p_corrupted == -2] = name_b
-            _, model_corrupted_cache = hl_model.run_with_cache(
-                (p_corrupted, None, None)
-            )
+            _, model_corrupted_cache = hl_model.run_with_cache((p_corrupted, None, None))
             model_clean_out = hl_model((p_clean, None, None))
 
             model_patch_out = hl_model.run_with_hooks(
@@ -133,7 +142,6 @@ def test_duplicate_head_patching() -> None:
                 assert (
                     combination in same_combinations
                 ), f"Expected different outputs for {prompt_type[j]} -> {prompt_type[i]} but got unchanged outputs."
-    
 
 
 def test_all_nodes_patching() -> None:
@@ -156,10 +164,7 @@ def test_all_nodes_patching() -> None:
     assert t.equal(model_patch_out, model_corrupted_out)
 
 
-
 def test_s_inhibition_head_patching() -> None:
-    return
-    # Not implemented yet
     test_names = t.tensor(range(10, 60, 1))
     hl_model = IOI_HL(d_vocab=61, names=test_names)
 
@@ -207,4 +212,22 @@ def test_s_inhibition_head_patching() -> None:
                 print("Different for ", prompt_type[j], " -> ", prompt_type[i])
             else:
                 print("Same for ", prompt_type[j], " -> ", prompt_type[i])
-    
+
+
+def test_ioi_hl_model():
+    dataset = make_ioi_test_dataset(num_samples=5000)
+    tokenizer = dataset.tokenizer
+    names = dataset.names
+
+    hl_model = IOI_HL(
+        d_vocab=len(tokenizer.vocab),
+        names=t.tensor(np.ravel([tokenizer.encode(" " + name) for name in names])),
+    )
+    loader = t.utils.data.DataLoader(
+        dataset, batch_size=512, shuffle=True, drop_last=False
+    )
+
+    for batch in loader:
+        hl_out = hl_model(batch[0])[:, -1].argmax(dim=-1)
+        labels = batch[1][:, -1].argmax(dim=-1)
+        assert t.equal(hl_out, labels)

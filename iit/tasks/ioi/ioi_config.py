@@ -192,6 +192,20 @@ BABA_EARLY_IOS = [
     "Then [B] and [A] had a long argument, and afterwards [B] said to [A]",
 ]
 
+HF_TEMPLATES = [
+    "Then, [A] and [B] went to the [PLACE]. [B] gave the [OBJECT] to [A]",
+    "Then, [A] and [B] went to the [PLACE]. [A] gave the [OBJECT] to [B]",
+    "Afterwards, [A] and [B] went to the [PLACE]. [B] gave the [OBJECT] to [A]",
+    "Afterwards, [A] and [B] went to the [PLACE]. [A] gave the [OBJECT] to [B]",
+    "Then, [A] and [B] were thinking about going to the [PLACE]. [A] wanted to give a [OBJECT] to [B]",
+    "Then, [A] and [B] were thinking about going to the [PLACE]. [B] wanted to give a [OBJECT] to [A]",
+    "While [A] and [B] were working at the [PLACE], [A] gave the [OBJECT] to [B]",
+    "While [A] and [B] were working at the [PLACE], [B] gave the [OBJECT] to [A]",
+    "Then, [A] and [B] had a long argument. Afterwards [A] said to [B]",
+    "Then, [A] and [B] had a long argument. Afterwards [B] said to [A]",
+    "Then, [A], [B] and [C] went to the [PLACE]. [B] and [C] gave a [OBJECT] to [A]",
+]
+
 TEMPLATES_VARIED_MIDDLE = [
     "",
 ]
@@ -215,6 +229,8 @@ for TEMPLATES in [ABBA_TEMPLATES, ABBA_LATE_IOS, ABBA_EARLY_IOS]:
             elif TEMPLATES[i][j - 1 : j + 2] == "[A]" and first_clause:
                 first_clause = False
                 TEMPLATES[i] = TEMPLATES[i][:j] + "B" + TEMPLATES[i][j + 1 :]
+
+ALL_TEMPLATES = list(set(BABA_TEMPLATES + ABBA_TEMPLATES + BABA_LATE_IOS + BABA_EARLY_IOS + ABBA_LATE_IOS + ABBA_EARLY_IOS + ABC_TEMPLATES + BAC_TEMPLATES + HF_TEMPLATES))
 
 VERBS = [" tried", " said", " decided", " wanted", " gave"]
 PLACES = [
@@ -729,7 +745,7 @@ class IOIDataset:
         ioi_prompts_for_word_idxs: Optional[list[dict]] = None,
         prepend_bos: bool = False,
         manual_word_idx: Optional[dict] = None,
-        seed: Optional[int] = None,
+        seed: int = 0,
     ):
         """
         ioi_prompts_for_word_idxs:
