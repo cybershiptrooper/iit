@@ -28,8 +28,8 @@ def make_ioi_dataset_and_hl(
     )
 
     ioi_names = t.tensor(
-        list(set([ioi_dataset_tl[i]["IO"].item() for i in range(len(ioi_dataset_tl))]))
-    ).to(device)
+        [ll_model.tokenizer.encode(" " + name) for name in ioi_dataset_tl.names]
+    ).flatten()
     hl_model = IOI_HL(d_vocab=ll_model.cfg.d_vocab_out, names=ioi_names, device=device)
 
     ioi_dataset = IOIDatasetWrapper(

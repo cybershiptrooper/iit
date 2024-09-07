@@ -23,7 +23,7 @@ def make_corr_dict(
 ) -> dict:
     all_attns = [f"blocks.{i}.attn.hook_z" for i in range(ioi_cfg["n_layers"])]
     all_mlps = [f"blocks.{i}.mlp.hook_post" for i in range(ioi_cfg["n_layers"])]
-    attn_idx = Ix[:, :, 1]
+    attn_idx = Ix[:, :, 1, :]
     if eval:
         all_nodes_hook = (
             "blocks.0.hook_resid_pre" if not use_pos_embed else "blocks.0.hook_pos_embed"

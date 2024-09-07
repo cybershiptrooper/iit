@@ -70,7 +70,7 @@ def test_name_mover_head() -> None:
 
 
 def test_ioi_hl() -> None:
-    a = IOI_HL(d_vocab=21, names=IOI_TEST_NAMES)(
+    a = IOI_HL(d_vocab=21, names=IOI_TEST_NAMES, return_one_hot=False)(
         (t.tensor([[3, 10, 4, 10, 5, 9, 2, 6, 5]]), None, None)
     )
     assert nonzero_values(a[0]).equal(
