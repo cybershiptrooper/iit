@@ -273,7 +273,7 @@ class BaseModelPair(ABC):
                 del scheduler_kwargs['final_lr']
 
             if "lr_lambda" not in scheduler_kwargs:
-                def linear_lr(step):
+                def linear_lr(step: int) -> float:
                     return 1 - (step / epochs) * (1 - final_lr / initial_lr)
 
                 scheduler_kwargs["lr_lambda"] = linear_lr
