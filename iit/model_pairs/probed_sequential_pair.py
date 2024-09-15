@@ -83,7 +83,8 @@ class IITProbeSequentialPair(IITModelPair):
         test_set: IITDataset,
         epochs: int = 1000,
         use_wandb: bool = False,
-        wandb_name_suffix: str = "",
+        wandb_project: str = "iit",
+        wandb_name: str = "",
         optimizer_kwargs: dict = {},
     ) -> None:
         training_args = self.training_args
@@ -111,7 +112,7 @@ class IITProbeSequentialPair(IITModelPair):
         loss_fn = t.nn.CrossEntropyLoss()
 
         if use_wandb and not wandb.run:
-            wandb.init(project="iit")
+            wandb.init(project=wandb_project, name=wandb_name)
 
         if use_wandb:
             wandb.config.update(training_args)
