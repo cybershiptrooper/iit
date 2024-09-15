@@ -12,7 +12,6 @@ from transformer_lens.hook_points import HookedRootModule, HookPoint # type: ign
 import wandb # type: ignore
 from iit.model_pairs.ll_model import LLModel
 from iit.utils.nodes import HLNode, LLNode
-from iit.utils.config import WANDB_ENTITY
 from iit.utils.correspondence import Correspondence
 from iit.utils.iit_dataset import IITDataset
 from iit.utils.index import Ix, TorchIndex
@@ -223,7 +222,8 @@ class BaseModelPair(ABC):
         test_set: IITDataset,
         epochs: int = 1000,
         use_wandb: bool = False,
-        wandb_name_suffix: str = "",
+        wandb_project: str = "iit",
+        wandb_name: str = "",
     ) -> None:
         training_args = self.training_args
         print(f"{training_args=}")
@@ -287,8 +287,7 @@ class BaseModelPair(ABC):
             print("No LR scheduler set up")
 
         if use_wandb and not wandb.run:
-            wandb.init(project="iit", name=wandb_name_suffix, 
-                       entity=WANDB_ENTITY)
+            wandb.init(project=wandb_project, name=wandb_name)
 
         if use_wandb:
             wandb.config.update(training_args)
