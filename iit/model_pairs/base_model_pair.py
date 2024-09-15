@@ -261,9 +261,30 @@ class BaseModelPair(ABC):
                 scheduler_kwargs['patience'] = 10
             if 'factor' not in scheduler_kwargs:
                 scheduler_kwargs['factor'] = 0.1
+
+            print(f"Setting up ReduceLROnPlateau scheduler ({mode}): {scheduler_kwargs}")
             lr_scheduler = scheduler_cls(optimizer, mode=mode, **scheduler_kwargs)
-        elif scheduler_cls:
+        if scheduler_cls == t.optim.lr_scheduler.LambdaLR:
+            # The default behaviour is to linearly reduce the learning rate to 2e-4
+            initial_lr = training_args["lr"]
+            final_lr = 2e-4
+            if 'final_lr' in scheduler_kwargs:
+                final_lr = scheduler_kwargs['final_lr']
+                del scheduler_kwargs['final_lr']
+
+            if "lr_lambda" not in scheduler_kwargs:
+                def linear_lr(step: int) -> float:
+                    return 1 - (step / epochs) * (1 - final_lr / initial_lr)
+
+                scheduler_kwargs["lr_lambda"] = linear_lr
+
+            print(f"Setting up LambdaLR scheduler: {scheduler_kwargs}")
             lr_scheduler = scheduler_cls(optimizer, **scheduler_kwargs)
+        elif scheduler_cls:
+            print(f"Setting up {scheduler_cls} scheduler: {scheduler_kwargs}")
+            lr_scheduler = scheduler_cls(optimizer, **scheduler_kwargs)
+        else:
+            print("No LR scheduler set up")
 
         if use_wandb and not wandb.run:
             wandb.init(project="iit", name=wandb_name_suffix, 
