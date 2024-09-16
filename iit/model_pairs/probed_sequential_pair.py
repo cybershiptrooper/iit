@@ -8,7 +8,6 @@ from tqdm import tqdm # type: ignore
 from transformer_lens.hook_points import HookedRootModule #type: ignore
 
 from iit.model_pairs.iit_model_pair import IITModelPair
-from iit.utils.config import WANDB_ENTITY
 from iit.utils.probes import construct_probes #type: ignore
 from iit.utils.correspondence import Correspondence
 from iit.utils.iit_dataset import IITDataset
@@ -84,7 +83,8 @@ class IITProbeSequentialPair(IITModelPair):
         test_set: IITDataset,
         epochs: int = 1000,
         use_wandb: bool = False,
-        wandb_name_suffix: str = "",
+        wandb_project: str = "iit",
+        wandb_name: str = "",
         optimizer_kwargs: dict = {},
     ) -> None:
         training_args = self.training_args
@@ -112,7 +112,7 @@ class IITProbeSequentialPair(IITModelPair):
         loss_fn = t.nn.CrossEntropyLoss()
 
         if use_wandb and not wandb.run:
-            wandb.init(project="iit", entity=WANDB_ENTITY)
+            wandb.init(project=wandb_project, name=wandb_name)
 
         if use_wandb:
             wandb.config.update(training_args)
