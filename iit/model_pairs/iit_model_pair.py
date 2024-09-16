@@ -28,6 +28,7 @@ class IITModelPair(BaseModelPair):
             "batch_size": 256,
             "num_workers": 0,
             "early_stop": True,
+            "early_stop_accuracy_threshold": 99.5,
             "lr_scheduler": None,
             "scheduler_val_metric": ["val/accuracy", "val/IIA"],
             "scheduler_mode": "max",
