@@ -374,12 +374,17 @@ class BaseModelPair(ABC):
         """
         Returns True if all types of accuracy metrics reach 100%
         """
+        assert "early_stop_accuracy_threshold" in self.training_args, ValueError(
+            "early_stop_accuracy_threshold not found in training_args"
+        )
+        early_stop_accuracy_threshold = float(self.training_args["early_stop_accuracy_threshold"])
+
         got_accuracy_metric = False
         for metric in test_metrics:
             if metric.type == MetricType.ACCURACY:
                 got_accuracy_metric = True
                 val = metric.get_value()
-                if isinstance(val, float) and val < 99.5:
+                if isinstance(val, float) and val < early_stop_accuracy_threshold:
                     return False
         if not got_accuracy_metric:
             raise ValueError("No accuracy metric found in test_metrics!")
