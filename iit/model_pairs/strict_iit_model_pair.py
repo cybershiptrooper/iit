@@ -96,9 +96,9 @@ class StrictIITModelPair(IITBehaviorModelPair):
     ) -> dict:
         use_single_loss = self.training_args["use_single_loss"]
 
-        iit_loss = t.zeros(1)
-        siit_loss = t.zeros(1)
-        behavior_loss = t.zeros(1)
+        iit_loss = t.zeros(1).to(self.ll_model.cfg.device)
+        siit_loss = t.zeros(1).to(self.ll_model.cfg.device)
+        behavior_loss = t.zeros(1).to(self.ll_model.cfg.device)
 
         if self.training_args["iit_weight"] > 0:
             hl_node = self.sample_hl_name()  # sample a high-level variable to ablate
