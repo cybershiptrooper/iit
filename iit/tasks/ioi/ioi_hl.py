@@ -65,6 +65,7 @@ class NameMoverHead(t.nn.Module):
         batch, seq = tokens.shape
         logits = t.zeros((batch, seq, self.d_vocab_out), device=tokens.device) # batch seq d_vocab
         # we want every name to increase its corresponding logit after it appears
+        self.names = self.names.to(tokens.device)
         name_mask = t.isin(tokens, self.names)
         
         batch_indices, seq_indices = t.meshgrid(t.arange(batch), t.arange(seq), indexing='ij')

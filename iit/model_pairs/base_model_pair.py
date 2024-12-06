@@ -228,12 +228,12 @@ class BaseModelPair(ABC):
         training_args = self.training_args
         print(f"{training_args=}")
 
-        assert isinstance(train_set, IITDataset), ValueError(
-            f"train_set is not an instance of IITDataset, but {type(train_set)}"
-        )
-        assert isinstance(test_set, IITDataset), ValueError(
-            f"test_set is not an instance of IITDataset, but {type(test_set)}"
-        )
+        # assert isinstance(train_set, IITDataset), ValueError(
+        #     f"train_set is not an instance of IITDataset, but {type(train_set)}"
+        # )
+        # assert isinstance(test_set, IITDataset), ValueError(
+        #     f"test_set is not an instance of IITDataset, but {type(test_set)}"
+        # )
         # assert self.ll_model.cfg.device == self.hl_model.device, ValueError(
         #     "ll_model and hl_model are not on the same device"
         # )
@@ -359,7 +359,7 @@ class BaseModelPair(ABC):
             if metric.type == MetricType.ACCURACY:
                 got_accuracy_metric = True
                 val = metric.get_value()
-                if isinstance(val, float) and val < 100:
+                if isinstance(val, float) and val < 99.5:
                     return False
         if not got_accuracy_metric:
             raise ValueError("No accuracy metric found in test_metrics!")

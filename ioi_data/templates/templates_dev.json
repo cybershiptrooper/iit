@@ -1,0 +1,11 @@
+[
+  "Then, {name_A} and {name_B} had a long argument. Afterwards {name_C} said to",
+  "Friends {name_A} and {name_B} found a {object} at the {place}. {name_C} gave it to",
+  "Once {name_A} and {name_B} finished at the {place}, {name_C} gave a {object} to",
+  "While {name_A} and {name_B} relaxed at the {place}, {name_C} presented a {object} to",
+  "After the lunch, {name_A} and {name_B} went to the {place}. {name_C} gave a {object} to",
+  "Later, {name_A} and {name_B} met at the {place}. {name_C} bought a {object} for",
+  "Then, {name_A} and {name_B} were thinking about going to the {place}. {name_C} wanted to give a {object} to",
+  "Afterwards, {name_A} and {name_B} went to the {place}. {name_C} gave a {object} to",
+  "When {name_A} and {name_B} were done exploring the {place}, {name_C} decided to give a {object} to"
+]

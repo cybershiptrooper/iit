@@ -38,7 +38,7 @@ class IITModelPair(BaseModelPair):
             "detach_while_caching": True,
             "optimizer_cls": t.optim.Adam,
             "optimizer_kwargs" : {
-                # "betas": (0.9, 0.9)
+                "betas": (0.9, 0.9)
             },
         }
         training_args = {**default_training_args, **training_args}

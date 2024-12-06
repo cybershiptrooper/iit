@@ -1,0 +1,12 @@
+[
+  "After {name_A} and {name_B} spent some time at the {place}, {name_C} offered a {object} to",
+  "While {name_A} and {name_B} were working at the {place}, {name_C} gave a {object} to",
+  "Just as {name_A} and {name_B} were leaving the {place}, {name_C} offered a {object} to",
+  "While {name_A} and {name_B} were commuting to the {place}, {name_C} gave a {object} to",
+  "After {name_A} and {name_B} finished their work at the {place}, {name_C} gave a {object} to",
+  "At the {place}, {name_A} and {name_B} found a {object}. {name_C} gave it to",
+  "When {name_A} and {name_B} got a {object} at the {place}, {name_C} decided to give the {object} to",
+  "After {name_A} and {name_B} went to the {place}, {name_C} gave a {object} to",
+  "As {name_A} and {name_B} left the {place}, {name_C} gave a {object} to",
+  "Then, {name_A} and {name_B} had a long argument, and afterwards {name_C} said to"
+]

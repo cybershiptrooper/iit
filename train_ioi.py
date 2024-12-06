@@ -1,4 +1,4 @@
-from iit.utils.train_scripts import train_ioi
+from iit.utils.train_scripts import train_ioi, train_ioi_mib
 from iit.utils.io_scripts import save_model
 from iit.utils.argparsing import IOIArgParseNamespace
 import torch as t
@@ -25,5 +25,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     namespace = IOIArgParseNamespace(**vars(args))
 
-    model_pair = train_ioi(namespace)
+    model_pair = train_ioi_mib(namespace)
     save_model(model_pair, namespace, "ioi")

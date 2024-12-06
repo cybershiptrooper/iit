@@ -60,7 +60,8 @@ class PerTokenMetricStore(MetricStore):
         return np.mean(self._store, axis=0)
 
     def __str__(self) -> str:
-        return f"{self._name}: {self.get_value()}"
+        # return f"{self._name}: {self.get_value()}"
+        return ""
 
 
 class MetricStoreCollection:
