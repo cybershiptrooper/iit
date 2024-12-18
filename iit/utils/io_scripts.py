@@ -1,5 +1,5 @@
 import os
-import json
+import pickle
 
 import torch as t
 import wandb
@@ -64,9 +64,9 @@ def save_model(model_pair: BaseModelPair, args: IOIArgParseNamespace, task: str)
         f.write(str(model_pair.test_metrics.metrics))
 
     # save corr dict
-    corr_file = os.path.join(save_dir, f"corr_{model_suffix}.json")
-    with open(corr_file, "w") as f:
-        json.dump(get_default_corr(task), f)
+    corr_file = os.path.join(save_dir, f"corr_{model_suffix}.pkl")
+    with open(corr_file, "wb") as f:
+        pickle.dump(get_default_corr(task), f)
 
     if args.save_to_wandb:
         wandb.init(
